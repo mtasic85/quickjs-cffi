@@ -1,7 +1,7 @@
 import os
-import json
 import argparse
 import subprocess
+from json import dumps
 from typing import Union
 
 from pycparser import c_ast, parse_file
@@ -51,11 +51,46 @@ const _quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
 };
 '''
 
-
-parser = argparse.ArgumentParser(description='Convert .h to .js')
-parser.add_argument('-c', dest='compiler', default='gcc', help='gcc, clang, tcc')
-parser.add_argument('-i', dest='input_path', help='input .h path')
-parser.add_argument('-o', dest='output_path', help='output .js path')
+PRIMITIVE_C_TYPES = [
+    'void',
+    'uint8',
+    'sint8',
+    'uint16',
+    'sint16',
+    'uint32',
+    'sint32',
+    'uint64',
+    'sint64',
+    'float',
+    'double',
+    'uchar',
+    'schar',
+    'ushort',
+    'sshort',
+    'uint',
+    'sint',
+    'ulong',
+    'slong',
+    'longdouble',
+    'pointer',
+    'complex_float',
+    'complex_double',
+    'complex_longdouble',
+    'uint8_t',
+    'int8_t',
+    'uint16_t',
+    'int16_t',
+    'uint32_t',
+    'int32_t',
+    'char',
+    'short',
+    'int',
+    'long',
+    'string',
+    'uintptr_t',
+    'intptr_t',
+    'size_t',
+]
 
 
 def create_output_dir(output_path: str):
@@ -71,7 +106,7 @@ def preprocess_header_file(compiler: str, input_path: str, output_path: str):
         f.write(output)
 
 
-def parse_and_convert(compiler: str, input_path: str, output_path: str):
+def parse_and_convert(compiler: str, shared_library: str, input_path: str, output_path: str):
     # check existance of input_path
     assert os.path.exists(input_path)
 
@@ -90,7 +125,7 @@ def parse_and_convert(compiler: str, input_path: str, output_path: str):
 
     js_lines: list[str] = [
         "import { CFunction, CCallback } from './quickjs-ffi.js';",
-        "const LIBCFLTK = './libcfltk.so.1.2.5';",
+        f"const LIBCFLTK = {dumps(shared_library)};",
         _QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
     ]
 
@@ -115,6 +150,7 @@ def parse_and_convert(compiler: str, input_path: str, output_path: str):
         return type_decl_name, type_decl_type, types
 
     def _get_func_decl_return_type(n) -> list[Union[str, dict]]:
+        # print('!!!', n)
         return 'void'
 
     def _get_func_decl_params_types(n) -> list[Union[str, dict]]:
@@ -133,12 +169,8 @@ def parse_and_convert(compiler: str, input_path: str, output_path: str):
             elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
                 mt = m.type.type.names[0]
 
-                if mt == 'int':
-                    t = 'int'
-                elif mt == 'float':
-                    t = 'float'
-                elif mt == 'double':
-                    t = 'double'
+                if mt in PRIMITIVE_C_TYPES:
+                    t = mt
                 else:
                     raise TypeError(f'Unsupported type {mt!r}')
 
@@ -165,11 +197,10 @@ def parse_and_convert(compiler: str, input_path: str, output_path: str):
             type_decl_type: str
             types: list
             type_decl_name, type_decl_type, types = _get_type_decl_types(n.type)
-            types: str = json.dumps(types)
-            js_line = f'const {type_decl_name} /*: {type_decl_type} */ = {types};'
+            js_line = f'const {type_decl_name} /*: {type_decl_type} */ = {dumps(types)};'
         elif isinstance(n.type, c_ast.FuncDecl):
             types: list = _get_func_decl_types(n.type)
-            types: str = ', '.join([json.dumps(t) for t in types])
+            types: str = ', '.join([dumps(t) for t in types])
             js_line = f'const {n.name} = _quickjs_ffi_wrap_ptr_func_decl(LIBCFLTK, {n.name!r}, null, {types});'
         elif isinstance(n.type, c_ast.PtrDecl) and isinstance(n.type.type, c_ast.FuncDecl):
             js_line = f'// Unsupported 1: {type(n.type)}'
@@ -198,5 +229,13 @@ def parse_and_convert(compiler: str, input_path: str, output_path: str):
 
 
 if __name__ == '__main__':
+    # cli arg parser
+    parser = argparse.ArgumentParser(description='Convert .h to .js')
+    parser.add_argument('-c', dest='compiler', default='gcc', help='gcc, clang, tcc')
+    parser.add_argument('-l', dest='shared_library', default='./libcfltk.so.1.2.5', help='Shared library')
+    parser.add_argument('-i', dest='input_path', help='input .h path')
+    parser.add_argument('-o', dest='output_path', help='output .js path')
+    
+    # parse_and_convert
     args = parser.parse_args()
-    parse_and_convert(args.compiler, args.input_path, args.output_path)
+    parse_and_convert(args.compiler, args.shared_library, args.input_path, args.output_path)
