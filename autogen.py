@@ -322,6 +322,11 @@ def get_typedef_func_decl(n) -> str:
     func_name, return_type, params = _get_func_decl_types(n)
     params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
     js_line = f'export const {func_name} = {{"type": "FuncDecl", "name": {dumps(func_name)}, "types": [{dumps(return_type)}, [{", ".join(params_types)}]]}};'
+
+    if func_name in USER_DEFINED_TYPES:
+        js_line = f'// {js_line}'
+
+    USER_DEFINED_TYPES[func_name] = None # FIXME
     return js_line
 
 
@@ -329,6 +334,11 @@ def get_func_decl(n) -> str:
     func_name, return_type, params = _get_func_decl_types(n)
     params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
     js_line = f'export const {func_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {func_name!r}, null, {dumps(return_type)}, ...[{", ".join(params_types)}]);'
+
+    if func_name in USER_DEFINED_TYPES:
+        js_line = f'// {js_line}'
+
+    USER_DEFINED_TYPES[func_name] = None # FIXME
     return js_line
 
 
