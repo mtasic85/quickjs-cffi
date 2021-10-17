@@ -92,6 +92,8 @@ PRIMITIVE_C_TYPES = [
     'size_t',
 ]
 
+CType = Union[str, dict]
+
 
 def create_output_dir(output_path: str):
     dirpath, filename = os.path.split(output_path)
@@ -104,6 +106,160 @@ def preprocess_header_file(compiler: str, input_path: str, output_path: str):
     
     with open(output_path, 'w+b') as f:
         f.write(output)
+
+
+def _get_func_decl_return_type(n) -> CType:
+    return_type: CType
+
+    if isinstance(n.type, c_ast.TypeDecl):
+        if isinstance(n.type.type, c_ast.IdentifierType):
+            if n.type.type.names:
+                return_type = n.type.type.names[0]
+            else:
+                return_type = 'void'
+        else:
+            return_type = f'/* _get_func_decl_return_type: Unsupported type {type(n)} */'
+    else:
+        return_type = f'/* _get_func_decl_return_type: Unsupported type {type(n)} */'
+
+    return return_type
+
+
+def _get_func_decl_params(n) -> list[tuple[str, CType]]:
+    params: list[tuple[str, CType]] = []
+    param: tuple[str, CType]
+
+    for m in n.args.params:
+        assert isinstance(m, c_ast.Typename)
+        if isinstance(m.type, c_ast.PtrDecl):
+            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and m.type.type.type.names[0] == 'char':
+                param = (None, 'string')
+            else:
+                param = (None, 'pointer')
+        elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
+            type_name: str = m.type.type.names[0]
+
+            if type_name in PRIMITIVE_C_TYPES:
+                param = (None, type_name)
+            else:
+                raise TypeError(f'Unsupported type {type_name!r}')
+
+        params.append(param)
+
+    return params
+
+
+def _get_func_decl_types(n) -> (str, CType, list[CType]):
+    func_name: str
+    return_type: CType
+    params: list[tuple[str, CType]]
+
+    func_name = n.type.declname
+    return_type = _get_func_decl_return_type(n)
+    params = _get_func_decl_params(n)
+
+    return func_name, return_type, params
+
+
+def _get_type_decl(n) -> (str, CType):
+    decl_name: str
+    decl_type: CType
+
+    # decl_name
+    if n.declname:
+        decl_name = n.declname
+    else:
+        decl_name = f'/* _get_type_decl: Unknown decl_name */'
+
+    # decl_type
+    if isinstance(n.type, c_ast.IdentifierType):
+        if n.type.names:
+            decl_type = n.type.names[0]
+        else:
+            decl_type = f'/* _get_type_decl: Unknown decl_type */'
+    else:
+        decl_type = f'/* _get_type_decl: Unsupported {n.type} */'
+
+    return decl_name, decl_type
+
+
+def _get_decl(n) -> (str, CType):
+    # name: str
+    decl_name: str
+    type_decl: CType
+
+    # # name
+    # name = n.name
+
+    if isinstance(n.type, c_ast.TypeDecl):
+        decl_name, type_decl = _get_type_decl(n.type)
+    else:
+        decl_name = '/* _get_decl: Unknown name */'
+        type_decl = f'/* _get_decl: Unsupported {n.type} */'
+
+    return decl_name, type_decl
+
+
+def _get_type_decl_types(n) -> (str, CType, list[tuple[str, CType]]):
+    type_decl_name: str
+    type_decl_type: CType
+    decls_fields: list[tuple[str, CType]]
+
+    # type_decl_name
+    type_decl_name = n.type.name
+
+    if isinstance(n.type, c_ast.Struct):
+        # type_decl_type
+        type_decl_type = 'struct'
+        
+        # decls_fields
+        if n.type.decls:
+            decls_fields = [_get_decl(m) for m in n.type.decls]
+        else:
+            decls_fields = []
+    else:
+        raise TypeError(f'Unsupported type {type(n.type)}')
+    
+    return type_decl_name, type_decl_type, decls_fields
+
+
+def get_type_decl(n) -> str:
+    type_decl_name, type_decl_type, decls_fields = _get_type_decl_types(n)
+    decls_types = [f'/* {field_name} */ {dumps(field_type)}' for field_name, field_type in decls_fields]
+    js_line = f'const {type_decl_name} /*: {type_decl_type} */ = {decls_types};'
+    return js_line
+
+
+def get_func_decl(n) -> str:
+    func_name, return_type, params = _get_func_decl_types(n)
+    params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
+    js_line = f'const {func_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {func_name!r}, null, {dumps(return_type)}, ...{params_types});'
+    return js_line
+
+
+def get_ptr_func_decl(n) -> str:
+    js_line = '/* get_ptr_func_decl */'
+    return js_line
+
+
+def get_typedef(n) -> str:
+    js_line: str
+
+    if isinstance(n.type, c_ast.TypeDecl):
+        js_line = get_type_decl(n.type)
+    elif isinstance(n.type, c_ast.FuncDecl):
+        js_line = get_func_decl(n.type)
+    elif isinstance(n.type, c_ast.PtrDecl) and isinstance(n.type.type, c_ast.FuncDecl):
+        js_line = get_ptr_func_decl(n.type.type)
+    else:
+        js_line = f'/* get_typedef: Unsupported {type(n.type)} */'
+    
+    return js_line
+
+
+def get_decl(n) -> str:
+    js_line: str = f'/* get_decl: Unsupported {type(n)} */'
+    return js_line
 
 
 def parse_and_convert(compiler: str, shared_library: str, input_path: str, output_path: str):
@@ -123,104 +279,24 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
     file_ast = parse_file(processed_output_path, use_cpp=True)
     assert isinstance(file_ast, c_ast.FileAST)
 
+    # wrap c code into js
     js_lines: list[str] = [
         "import { CFunction, CCallback } from './quickjs-ffi.js';",
-        f"const LIBCFLTK = {dumps(shared_library)};",
+        f"const LIB = {dumps(shared_library)};",
         _QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
     ]
 
-    def _get_type_decl_types(n) -> (str, str, list[Union[str, dict]]):
-        type_decl_type: str
-        type_decl_name: str
-        types: list[Union[str, dict]]
-        t: Union[str, dict]
-
-        type_decl_name = n.type.name
-
-        if isinstance(n.type, c_ast.Struct):
-            type_decl_type = 'struct'
-            
-            if n.type.decls:
-                types = [_get_decl(m) for m in n.type.decls]
-            else:
-                types = []
-        else:
-            raise TypeError(f'Unsupported type {type(n.type)}')
-        
-        return type_decl_name, type_decl_type, types
-
-    def _get_func_decl_return_type(n) -> list[Union[str, dict]]:
-        # print('!!!', n)
-        return 'void'
-
-    def _get_func_decl_params_types(n) -> list[Union[str, dict]]:
-        types: list[Union[str, dict]] = []
-        t: Union[str, dict]
-
-        for m in n.args.params:
-            assert isinstance(m, c_ast.Typename)
-            t: list[Union[str, dict]]
-            
-            if isinstance(m.type, c_ast.PtrDecl):
-                if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and m.type.type.type.names[0] == 'char':
-                    t = 'string'
-                else:
-                    t = 'pointer'
-            elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
-                mt = m.type.type.names[0]
-
-                if mt in PRIMITIVE_C_TYPES:
-                    t = mt
-                else:
-                    raise TypeError(f'Unsupported type {mt!r}')
-
-            types.append(t)
-
-        return types
-
-    def _get_func_decl_types(n) -> list[Union[str, dict]]:
-        types: list[Union[str, dict]] = []
-        
-        # return type
-        types.append(_get_func_decl_return_type(n))
-
-        # params types
-        types.extend(_get_func_decl_params_types(n))
-
-        return types
-
-    def _get_type_def(n) -> str:
-        js_line: str
-
-        if isinstance(n.type, c_ast.TypeDecl):
-            type_decl_name: str
-            type_decl_type: str
-            types: list
-            type_decl_name, type_decl_type, types = _get_type_decl_types(n.type)
-            js_line = f'const {type_decl_name} /*: {type_decl_type} */ = {dumps(types)};'
-        elif isinstance(n.type, c_ast.FuncDecl):
-            types: list = _get_func_decl_types(n.type)
-            types: str = ', '.join([dumps(t) for t in types])
-            js_line = f'const {n.name} = _quickjs_ffi_wrap_ptr_func_decl(LIBCFLTK, {n.name!r}, null, {types});'
-        elif isinstance(n.type, c_ast.PtrDecl) and isinstance(n.type.type, c_ast.FuncDecl):
-            js_line = f'// Unsupported 1: {type(n.type)}'
-        else:
-            js_line = f'// Unsupported 2: {type(n.type)}'
-
-        return js_line
-
-    def _get_decl(n) -> str:
-        js_line: str = f'// _get_decl: Unsupported {type(n)}'
-        return js_line
+    js_line: str
 
     for n in file_ast.ext:
-        print(type(n), n)
-        js_line: str
+        print(n)
 
         if isinstance(n, c_ast.Typedef):
-            js_line = _get_type_def(n)
+            js_line = get_typedef(n)
         elif isinstance(n, c_ast.Decl):
-            js_line = _get_decl(n)
+            js_line = get_decl(n)
+        else:
+            js_line = f'/* parse_and_convert: Unsupported type {type(n)} */'
 
         js_lines.append(js_line)
 
