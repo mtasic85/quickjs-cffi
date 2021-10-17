@@ -92,6 +92,22 @@ PRIMITIVE_C_TYPES = [
     'size_t',
 ]
 
+PRIMITIVE_C_TYPES_ALIASES = {
+    '_Bool': 'int',
+    'signed char': 'schar',
+    'unsigned char': 'uchar',
+    'signed int': 'sint',
+    'unsigned int': 'uint',
+    'long long': 'sint64', # FIXME: platform specific
+    'signed long': 'uint32', # FIXME: platform specific
+    'unsigned long': 'uint32', # FIXME: platform specific
+    'signed long long': 'sint64', # FIXME: platform specific
+    'unsigned long long': 'uint64', # FIXME: platform specific
+    'long double': 'longdouble',
+}
+
+USER_DEFINED_TYPES = {}
+
 CType = Union[str, dict]
 
 
@@ -108,19 +124,49 @@ def preprocess_header_file(compiler: str, input_path: str, output_path: str):
         f.write(output)
 
 
+def _get_compatible_type_name(name: Union[str, list[str]]) -> str:
+    if isinstance(name, list):
+        name = ' '.join(name)
+
+    return PRIMITIVE_C_TYPES_ALIASES.get(name, name)
+
+
 def _get_func_decl_return_type(n) -> CType:
     return_type: CType
 
-    if isinstance(n.type, c_ast.TypeDecl):
-        if isinstance(n.type.type, c_ast.IdentifierType):
-            if n.type.type.names:
-                return_type = n.type.type.names[0]
+    if isinstance(n, c_ast.FuncDecl):
+        if isinstance(n.type, c_ast.PtrDecl):
+            return_type = 'pointer'
+        elif isinstance(n.type, c_ast.TypeDecl):
+            if isinstance(n.type.type, c_ast.IdentifierType):
+                return_type: str = _get_compatible_type_name(n.type.type.names)
+
+                if return_type in PRIMITIVE_C_TYPES:
+                    pass
+                elif type_name in USER_DEFINED_TYPES:
+                    return_type = USER_DEFINED_TYPES[return_type]
+                else:
+                    raise TypeError(f'Unsupported type {return_type!r}')
             else:
-                return_type = 'void'
+                return_type = f'/* _get_func_decl_return_type: -3 Unsupported type {type(n)}, {type(n.type)}, {type(n.type.type)} */'
         else:
-            return_type = f'/* _get_func_decl_return_type: Unsupported type {type(n)} */'
+            return_type = f'/* _get_func_decl_return_type: -2 Unsupported type {type(n)}, {type(n.type)} */'
     else:
-        return_type = f'/* _get_func_decl_return_type: Unsupported type {type(n)} */'
+        if isinstance(n.type, c_ast.TypeDecl):
+            if isinstance(n.type.type, c_ast.IdentifierType):
+                if n.type.type.names:
+                    return_type = _get_compatible_type_name(n.type.type.names)
+                else:
+                    return_type = 'void'
+            else:
+                return_type = f'/* _get_func_decl_return_type: 1 Unsupported type {type(n)} */'
+        elif isinstance(n.type, c_ast.FuncDecl):
+            if isinstance(n.type.type, c_ast.PtrDecl):
+                return_type = 'pointer'
+            else:
+                return_type = f'/* _get_func_decl_return_type: 2 Unsupported type {type(n)} */'
+        else:
+            return_type = f'/* _get_func_decl_return_type: 3 Unsupported type {type(n)} */'
 
     return return_type
 
@@ -130,17 +176,21 @@ def _get_func_decl_params(n) -> list[tuple[str, CType]]:
     param: tuple[str, CType]
 
     for m in n.args.params:
-        assert isinstance(m, c_ast.Typename)
+        assert isinstance(m, (c_ast.Typename, c_ast.Decl))
+        name = m.name
+
         if isinstance(m.type, c_ast.PtrDecl):
-            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and m.type.type.type.names[0] == 'char':
-                param = (None, 'string')
+            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
+                param = (name, 'string')
             else:
-                param = (None, 'pointer')
+                param = (name, 'pointer')
         elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
-            type_name: str = m.type.type.names[0]
+            type_name: str = _get_compatible_type_name(m.type.type.names)
 
             if type_name in PRIMITIVE_C_TYPES:
-                param = (None, type_name)
+                param = (name, type_name)
+            elif type_name in USER_DEFINED_TYPES:
+                param = (None, USER_DEFINED_TYPES[type_name])
             else:
                 raise TypeError(f'Unsupported type {type_name!r}')
 
@@ -154,7 +204,13 @@ def _get_func_decl_types(n) -> (str, CType, list[CType]):
     return_type: CType
     params: list[tuple[str, CType]]
 
-    func_name = n.type.declname
+    if isinstance(n.type, c_ast.TypeDecl):
+        func_name = n.type.declname
+    elif isinstance(n.type, c_ast.PtrDecl):
+        func_name = n.type.type.declname
+    else:
+        raise TypeError(f'Unsupported type {n.type}')
+
     return_type = _get_func_decl_return_type(n)
     params = _get_func_decl_params(n)
 
@@ -174,7 +230,7 @@ def _get_type_decl(n) -> (str, CType):
     # decl_type
     if isinstance(n.type, c_ast.IdentifierType):
         if n.type.names:
-            decl_type = n.type.names[0]
+            decl_type = _get_compatible_type_name(n.type.names)
         else:
             decl_type = f'/* _get_type_decl: Unknown decl_type */'
     else:
@@ -224,21 +280,34 @@ def _get_type_decl_types(n) -> (str, CType, list[tuple[str, CType]]):
 
 
 def get_type_decl(n) -> str:
-    type_decl_name, type_decl_type, decls_fields = _get_type_decl_types(n)
-    decls_types = [f'/* {field_name} */ {dumps(field_type)}' for field_name, field_type in decls_fields]
-    js_line = f'const {type_decl_name} /*: {type_decl_type} */ = {decls_types};'
+    # type_decl_type is always "struct"
+    type_decl_name, type_decl_type, type_decls_fields = _get_type_decl_types(n)
+    type_decls_types = [f'/* {field_name} */ {dumps(field_type)}' for field_name, field_type in type_decls_fields]
+    js_line = f'export const {type_decl_name} /*: {type_decl_type} */ = {type_decls_types};'
+    
+    if type_decl_name in USER_DEFINED_TYPES:
+        js_line = f'// {js_line}'
+    
+    USER_DEFINED_TYPES[type_decl_name] = type_decls_fields
     return js_line
 
 
 def get_func_decl(n) -> str:
     func_name, return_type, params = _get_func_decl_types(n)
     params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
-    js_line = f'const {func_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {func_name!r}, null, {dumps(return_type)}, ...{params_types});'
+    js_line = f'export const {func_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {func_name!r}, null, {dumps(return_type)}, ...[{", ".join(params_types)}]);'
     return js_line
 
 
 def get_ptr_func_decl(n) -> str:
-    js_line = '/* get_ptr_func_decl */'
+    func_name, return_type, params = _get_func_decl_types(n.type)
+    params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
+    js_line = f'export const {func_name} /* : "function pointer" */ = [{dumps(return_type)}, ...[{", ".join(params_types)}]];'
+
+    if func_name in USER_DEFINED_TYPES:
+        js_line = f'// {js_line}'
+
+    USER_DEFINED_TYPES[func_name] = 'pointer'
     return js_line
 
 
@@ -250,7 +319,7 @@ def get_typedef(n) -> str:
     elif isinstance(n.type, c_ast.FuncDecl):
         js_line = get_func_decl(n.type)
     elif isinstance(n.type, c_ast.PtrDecl) and isinstance(n.type.type, c_ast.FuncDecl):
-        js_line = get_ptr_func_decl(n.type.type)
+        js_line = get_ptr_func_decl(n.type)
     else:
         js_line = f'/* get_typedef: Unsupported {type(n.type)} */'
     
@@ -258,7 +327,7 @@ def get_typedef(n) -> str:
 
 
 def get_decl(n) -> str:
-    js_line: str = f'/* get_decl: Unsupported {type(n)} */'
+    js_line: str = get_func_decl(n.type)
     return js_line
 
 
@@ -301,7 +370,12 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
         js_lines.append(js_line)
 
     print('-' * 20)
-    print('\n'.join(js_lines))
+
+    output_data: str = '\n'.join(js_lines)
+    print(output_data)
+
+    with open(output_path, 'w+') as f:
+        f.write(output_data)
 
 
 if __name__ == '__main__':
