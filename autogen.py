@@ -395,7 +395,7 @@ if __name__ == '__main__':
     # cli arg parser
     parser = argparse.ArgumentParser(description='Convert .h to .js')
     parser.add_argument('-c', dest='compiler', default='gcc', help='gcc, clang, tcc')
-    parser.add_argument('-l', dest='shared_library', default='./libcfltk.so.1.2.5', help='Shared library')
+    parser.add_argument('-l', dest='shared_library', default='./libcfltk.so', help='Shared library')
     parser.add_argument('-i', dest='input_path', help='input .h path')
     parser.add_argument('-o', dest='output_path', help='output .js path')
     
