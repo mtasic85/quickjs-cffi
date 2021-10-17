@@ -102,7 +102,9 @@ PRIMITIVE_C_TYPES_ALIASES = {
     '_Bool': 'int',
     'signed char': 'schar',
     'unsigned char': 'uchar',
+    'signed': 'sint',
     'signed int': 'sint',
+    'unsigned': 'uint',
     'unsigned int': 'uint',
     'long long': 'sint64', # FIXME: platform specific
     'signed long': 'uint32', # FIXME: platform specific
@@ -149,7 +151,7 @@ def _get_func_decl_return_type(n) -> CType:
 
                 if return_type in PRIMITIVE_C_TYPES:
                     pass
-                elif type_name in USER_DEFINED_TYPES:
+                elif return_type in USER_DEFINED_TYPES:
                     return_type = USER_DEFINED_TYPES[return_type]
                 else:
                     raise TypeError(f'Unsupported type {return_type!r}')
@@ -213,13 +215,20 @@ def _get_func_decl_types(n) -> (str, CType, list[CType]):
     if isinstance(n.type, c_ast.TypeDecl):
         func_name = n.type.declname
     elif isinstance(n.type, c_ast.PtrDecl):
-        func_name = n.type.type.declname
+        if isinstance(n.type.type, c_ast.TypeDecl):
+            func_name = n.type.type.declname
+        elif isinstance(n.type.type, c_ast.PtrDecl):
+            if isinstance(n.type.type.type, c_ast.TypeDecl):
+                func_name = n.type.type.type.declname
+            else:
+                raise TypeError(f'_get_func_decl_types: Unsupported type {n.type.type.type}')
+        else:
+            raise TypeError(f'_get_func_decl_types: Unsupported type {n.type.type}')
     else:
-        raise TypeError(f'Unsupported type {n.type}')
+        raise TypeError(f'_get_func_decl_types: Unsupported type {n.type}')
 
     return_type = _get_func_decl_return_type(n)
     params = _get_func_decl_params(n)
-
     return func_name, return_type, params
 
 
@@ -279,15 +288,26 @@ def _get_type_decl_types(n) -> (str, CType, list[tuple[str, CType]]):
             decls_fields = [_get_decl(m) for m in n.type.decls]
         else:
             decls_fields = []
+    elif isinstance(n.type, c_ast.Union):
+        # type_decl_type
+        type_decl_type = 'union'
+
+        # decls_fields
+        if n.type.decls:
+            decls_fields = [_get_decl(m) for m in n.type.decls]
+        else:
+            decls_fields = []
     else:
         raise TypeError(f'Unsupported type {type(n.type)}')
     
     return type_decl_name, type_decl_type, decls_fields
 
 
-def get_type_decl(n) -> str:
+def get_type_decl(n, name=None) -> str:
     # type_decl_type is always "struct"
     type_decl_name, type_decl_type, type_decls_fields = _get_type_decl_types(n)
+    type_decl_name = type_decl_name or name
+
     type_decls_types = [f'/* {field_name} */ {dumps(field_type)}' for field_name, field_type in type_decls_fields]
     js_line = f'export const {type_decl_name} /*: {type_decl_type} */ = {type_decls_types};'
     
@@ -324,11 +344,88 @@ def get_ptr_func_decl(n) -> str:
     return js_line
 
 
+def get_array_decl(n) -> str:
+    js_line: str
+    array_var_name: str
+    items: list = []
+
+    if isinstance(n.type, c_ast.ArrayDecl):
+        array_var_name = n.name
+
+        if isinstance(n.type.type, c_ast.PtrDecl):
+            if isinstance(n.type.type.type, c_ast.TypeDecl):
+                if isinstance(n.type.type.type.type, c_ast.IdentifierType):
+                    type_name: str = _get_compatible_type_name(n.type.type.type.type.names)
+
+                    if type_name == 'char':
+                        type_name = 'string'
+
+                    if isinstance(n.init, c_ast.InitList):
+                        for m in n.init.exprs:
+                            if isinstance(m, c_ast.Constant):
+                                if m.type == 'string':
+                                    item = m.value[1:-1]
+                                else:
+                                    item = m.value
+
+                                items.append(item)
+
+                    else:
+                        raise TypeError(f'get_array_decl: Unsupported {type(n.init)}')
+                else:
+                    raise TypeError(f'get_array_decl: Unsupported {type(n.type.type.type.type)}')
+            else:
+                raise TypeError(f'get_array_decl: Unsupported {type(n.type.type.type)}')
+        else:
+            raise TypeError(f'get_array_decl: Unsupported {type(n.type.type)}')
+    else:
+        raise TypeError(f'get_array_decl: Unsupported {type(n.type)}')
+
+    js_line = f'const {array_var_name} = {dumps(items)};'
+    return js_line
+
+
+def get_enum_decl(n) -> str:
+    js_line: str
+    enum_var_name: str
+    items: dict = {}
+
+    if isinstance(n, c_ast.Enum):
+        enum_var_name = n.name
+
+        if isinstance(n.values, c_ast.EnumeratorList):
+            for m in n.values.enumerators:
+                if isinstance(m, c_ast.Enumerator):
+                    k = m.name
+
+                    if isinstance(m.value, c_ast.Constant):
+                        v = eval(m.value.value)
+                    elif m.value is None:
+                        v = None
+                    elif isinstance(m.value, c_ast.BinaryOp):
+                        v = eval(f'{m.value.left.value} {m.value.op} {m.value.right.value}')
+                    elif isinstance(m.value, c_ast.UnaryOp):
+                        v = eval(f'{m.value.op} {m.value.expr.value}')
+                    else:
+                        raise TypeError(f'get_enum_decl: Unsupported {type(m.value)}')
+
+                    items[k] = v
+                else:
+                    raise TypeError(f'get_enum_decl: Unsupported {type(m)}')
+        else:
+            raise TypeError(f'get_enum_decl: Unsupported {type(n.values)}')
+    else:
+        raise TypeError(f'get_enum_decl: Unsupported {type(n)}')
+
+    js_line = f'const {enum_var_name} = {dumps(items)};'
+    return js_line
+
+
 def get_typedef(n) -> str:
     js_line: str
 
     if isinstance(n.type, c_ast.TypeDecl):
-        js_line = get_type_decl(n.type)
+        js_line = get_type_decl(n.type, name=n.name)
     elif isinstance(n.type, c_ast.FuncDecl):
         js_line = get_typedef_func_decl(n.type)
     elif isinstance(n.type, c_ast.PtrDecl) and isinstance(n.type.type, c_ast.FuncDecl):
@@ -340,7 +437,17 @@ def get_typedef(n) -> str:
 
 
 def get_decl(n) -> str:
-    js_line: str = get_func_decl(n.type)
+    js_line: str
+
+    if isinstance(n.type, c_ast.FuncDecl):
+        js_line = get_func_decl(n.type)
+    elif isinstance(n.type, c_ast.ArrayDecl):
+        js_line = get_array_decl(n)
+    elif isinstance(n.type, c_ast.Enum):
+        js_line = get_enum_decl(n.type)
+    else:
+        js_line = f'/* get_decl: Unsupported {type(n.type)} */'
+    
     return js_line
 
 
