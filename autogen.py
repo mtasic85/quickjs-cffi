@@ -24,7 +24,13 @@ const _quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
         }
     });
 
-    const c_func = new CFunction(lib, name, nargs, ...c_types);
+    let c_func;
+
+    try {
+        c_func = new CFunction(lib, name, nargs, ...c_types);
+    } catch (e) {
+        c_func = null;
+    }
     
     const js_func = (...js_args) => {
         const c_args = types.slice(1).map((type, i) => {
