@@ -292,6 +292,13 @@ def get_type_decl(n) -> str:
     return js_line
 
 
+def get_typedef_func_decl(n) -> str:
+    func_name, return_type, params = _get_func_decl_types(n)
+    params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
+    js_line = f'export const {func_name} = {{"type": "FuncDecl", "name": {dumps(func_name)}, "types": [{dumps(return_type)}, [{", ".join(params_types)}]]}};'
+    return js_line
+
+
 def get_func_decl(n) -> str:
     func_name, return_type, params = _get_func_decl_types(n)
     params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
@@ -317,7 +324,7 @@ def get_typedef(n) -> str:
     if isinstance(n.type, c_ast.TypeDecl):
         js_line = get_type_decl(n.type)
     elif isinstance(n.type, c_ast.FuncDecl):
-        js_line = get_func_decl(n.type)
+        js_line = get_typedef_func_decl(n.type)
     elif isinstance(n.type, c_ast.PtrDecl) and isinstance(n.type.type, c_ast.FuncDecl):
         js_line = get_ptr_func_decl(n.type)
     else:
