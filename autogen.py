@@ -109,6 +109,7 @@ PRIMITIVE_C_TYPES = [
 ]
 
 PRIMITIVE_C_TYPES_ALIASES = {
+    **{n: n for n in PRIMITIVE_C_TYPES},
     '_Bool': 'int',
     'signed char': 'schar',
     'unsigned char': 'uchar',
@@ -140,6 +141,11 @@ USER_DEFINED_TYPES = ChainMap(
     USER_DEFINED_ENUM_DECL,
 )
 
+TYPES = ChainMap(
+    PRIMITIVE_C_TYPES_ALIASES,
+    USER_DEFINED_TYPES,
+)
+
 CType = Union[str, dict]
 
 
@@ -163,7 +169,38 @@ def _get_compatible_type_name(name: Union[str, list[str]]) -> str:
     return PRIMITIVE_C_TYPES_ALIASES.get(name, name)
 
 
-def _get_func_decl_return_type(n) -> CType:
+def _get_leaf_names(n) -> list[str]:
+    if isinstance(n, c_ast.IdentifierType):
+        if hasattr(n, 'names'):
+            return n.names
+        else:
+            return []
+    else:
+        return _get_leaf_names(n.type)
+
+
+def _get_func_decl_func_name(n, kind: str) -> str:
+    func_name: str
+
+    if isinstance(n.type, c_ast.TypeDecl):
+        func_name = n.type.declname
+    elif isinstance(n.type, c_ast.PtrDecl):
+        if isinstance(n.type.type, c_ast.TypeDecl):
+            func_name = n.type.type.declname
+        elif isinstance(n.type.type, c_ast.PtrDecl):
+            if isinstance(n.type.type.type, c_ast.TypeDecl):
+                func_name = n.type.type.type.declname
+            else:
+                raise TypeError(f'_get_func_decl_types: Unsupported type {n.type.type.type}')
+        else:
+            raise TypeError(f'_get_func_decl_types: Unsupported type {n.type.type}')
+    else:
+        raise TypeError(f'_get_func_decl_types: Unsupported type {n.type}')
+
+    return func_name
+
+
+def _get_func_decl_return_type(n, kind: str) -> CType:
     return_type: CType
 
     if isinstance(n, c_ast.FuncDecl):
@@ -175,8 +212,8 @@ def _get_func_decl_return_type(n) -> CType:
 
                 if return_type in PRIMITIVE_C_TYPES:
                     pass
-                elif return_type in USER_DEFINED_TYPES:
-                    return_type = USER_DEFINED_TYPES[return_type]
+                elif return_type in TYPES:
+                    return_type = TYPES[return_type]
                 else:
                     raise TypeError(f'Unsupported type {return_type!r}')
             else:
@@ -203,40 +240,103 @@ def _get_func_decl_return_type(n) -> CType:
     return return_type
 
 
-def _get_func_decl_params(n) -> list[tuple[str, CType]]:
+def _get_func_decl_params(n, kind: str) -> list[tuple[str, CType]]:
     params: list[tuple[str, CType]] = []
     param: tuple[str, CType]
 
     for m in n.args.params:
         assert isinstance(m, (c_ast.Typename, c_ast.Decl))
         name = m.name
+        type_name: str = _get_compatible_type_name(_get_leaf_names(n))
 
         if isinstance(m.type, c_ast.PtrDecl):
-            # if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
-            #     param = (name, 'string')
-            # elif name in USER_DEFINED_TYPES:
-            #     raise TypeError(name)
-            #     param = (name, 'pointer')
-            # else:
-            #     param = (name, 'pointer')
+            '''
+            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
+                param = (name, 'string')
+            else:
+                param = (name, 'pointer')
+            '''
+
+            '''
+            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
+                param = (name, 'string')
+            elif name in USER_DEFINED_TYPES:
+                raise TypeError(name)
+                param = (name, 'pointer')
+            else:
+                param = (name, 'pointer')
+            '''
+
+            '''
             if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType):
                 type_name = _get_compatible_type_name(m.type.type.type.names)
 
                 if type_name == 'char':
                     param = (name, 'string')
-                elif type_name in USER_DEFINED_TYPES:
-                    param = (name, USER_DEFINED_TYPES[type_name])
+                else:
+                    if kind == 'TypedefFuncDecl':
+                        param = (name, 'pointer')
+                    else:
+                        if type_name in USER_DEFINED_TYPES:
+                            param = (name, USER_DEFINED_TYPES[type_name])
+                        else:
+                            param = (name, 'pointer')
+            else:
+                param = (name, 'pointer')
+            '''
+
+            '''
+            if kind == 'TypedefFuncDecl':
+                if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
+                    param = (name, 'string')
                 else:
                     param = (name, 'pointer')
             else:
-                param = (name, 'pointer')
-        elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
-            type_name: str = _get_compatible_type_name(m.type.type.names)
+                if name in USER_DEFINED_TYPES:
+                    param = (name, USER_DEFINED_TYPES[name])
+                else:
+                    param = (name, 'pointer')
+            '''
 
+            # if type_name == 'Fl_Callback':
+            #     raise TypeError((kind, name, type_name))
+
+            if kind == 'TypedefFuncDecl' or kind == 'FuncDecl':
+                if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType):
+                    if type_name == 'char':
+                        param = (name, 'string')
+                    elif type_name in TYPES:
+                        t = TYPES[type_name]
+
+                        if isinstance(t, dict) and t['type'] == 'FuncDecl':
+                            t = {'type': 'PtrFuncDecl', 'types': t['types']}
+
+                        if type_name == 'Fl_Callback':
+                            # pprint(TYPES)
+                            # raise TypeError((kind, name, type_name, t))
+                            print('!', kind, name, type_name, t)
+                            input()
+
+                        param = (name, t)
+                    else:
+                        # param = (name, 'pointer')
+                        raise TypeError(f'Unsupported type {type_name!r}')
+                else:
+                    param = (name, 'pointer')
+            elif kind == 'PtrFuncDecl':
+                # if type_name in TYPES:
+                #     param = (name, TYPES[type_name])
+                # else:
+                #     param = (name, 'pointer')
+                param = (name, 'pointer')
+            else:
+                param = (name, 'pointer')
+
+        elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
             if type_name in PRIMITIVE_C_TYPES:
                 param = (name, type_name)
-            elif type_name in USER_DEFINED_TYPES:
-                param = (None, USER_DEFINED_TYPES[type_name])
+            elif type_name in TYPES:
+                param = (None, TYPES[type_name])
             else:
                 raise TypeError(f'Unsupported type {type_name!r}')
 
@@ -245,28 +345,10 @@ def _get_func_decl_params(n) -> list[tuple[str, CType]]:
     return params
 
 
-def _get_func_decl_types(n) -> (str, CType, list[CType]):
-    func_name: str
-    return_type: CType
-    params: list[tuple[str, CType]]
-
-    if isinstance(n.type, c_ast.TypeDecl):
-        func_name = n.type.declname
-    elif isinstance(n.type, c_ast.PtrDecl):
-        if isinstance(n.type.type, c_ast.TypeDecl):
-            func_name = n.type.type.declname
-        elif isinstance(n.type.type, c_ast.PtrDecl):
-            if isinstance(n.type.type.type, c_ast.TypeDecl):
-                func_name = n.type.type.type.declname
-            else:
-                raise TypeError(f'_get_func_decl_types: Unsupported type {n.type.type.type}')
-        else:
-            raise TypeError(f'_get_func_decl_types: Unsupported type {n.type.type}')
-    else:
-        raise TypeError(f'_get_func_decl_types: Unsupported type {n.type}')
-
-    return_type = _get_func_decl_return_type(n)
-    params = _get_func_decl_params(n)
+def _get_func_decl_types(n, kind: str) -> (str, CType, list[CType]):
+    func_name: str = _get_func_decl_func_name(n, kind)
+    return_type: CType = _get_func_decl_return_type(n, kind)
+    params: list[tuple[str, CType]] = _get_func_decl_params(n, kind)
     return func_name, return_type, params
 
 
@@ -349,7 +431,7 @@ def get_type_decl(n, name=None) -> str:
     type_decls_types = [f'/* {field_name} */ {dumps(field_type)}' for field_name, field_type in type_decls_fields]
     js_line = f'export const {type_decl_name} /*: {type_decl_type} */ = {type_decls_types};'
     
-    if type_decl_name in USER_DEFINED_TYPES:
+    if type_decl_name in TYPES:
         js_line = f'// {js_line}'
     
     USER_DEFINED_TYPE_DECL[type_decl_name] = type_decls_fields
@@ -357,33 +439,34 @@ def get_type_decl(n, name=None) -> str:
 
 
 def get_typedef_func_decl(n) -> str:
-    func_name, return_type, params = _get_func_decl_types(n)
+    func_name, return_type, params = _get_func_decl_types(n, kind='TypedefFuncDecl')
     params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
     js_line = f'export const {func_name} = {{"type": "FuncDecl", "name": {dumps(func_name)}, "types": [{dumps(return_type)}, [{", ".join(params_types)}]]}};'
 
-    if func_name in USER_DEFINED_TYPES:
+    if func_name in TYPES:
         js_line = f'// {js_line}'
 
     USER_DEFINED_TYPEDEF_FUNC_DECL[func_name] = {
-        'type': 'FuncDecl',
+        'type': 'TypedefFuncDecl',
         'name': func_name,
         'types': [return_type, *[param_type for param_name, param_type in params]],
     }
+
+    # FIXME: remove this code block
+    # if func_name == 'Fl_Callback':
+    #     print(USER_DEFINED_TYPEDEF_FUNC_DECL)
+    #     raise TypeError(func_name)
 
     return js_line
 
 
 def get_func_decl(n) -> str:
-    func_name, return_type, params = _get_func_decl_types(n)
+    func_name, return_type, params = _get_func_decl_types(n, kind='FuncDecl')
     params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
     js_line = f'export const {func_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {func_name!r}, null, {dumps(return_type)}, ...[{", ".join(params_types)}]);'
 
-    if func_name in USER_DEFINED_TYPES:
+    if func_name in TYPES:
         js_line = f'// {js_line}'
-
-    # USER_DEFINED_TYPES[func_name] = None # FIXME
-    # if func_name in ('Fl_Button_set_callback',):
-    #     raise TypeError(func_name)
 
     USER_DEFINED_FUNC_DECL[func_name] = {
         'type': 'FuncDecl',
@@ -395,11 +478,11 @@ def get_func_decl(n) -> str:
 
 
 def get_ptr_func_decl(n) -> str:
-    func_name, return_type, params = _get_func_decl_types(n.type)
+    func_name, return_type, params = _get_func_decl_types(n.type, kind='PtrFuncDecl')
     params_types = [f'/* {param_name} */ {dumps(param_type)}' for param_name, param_type in params]
     js_line = f'export const {func_name} /* : "function pointer" */ = [{dumps(return_type)}, ...[{", ".join(params_types)}]];'
 
-    if func_name in USER_DEFINED_TYPES:
+    if func_name in TYPES:
         js_line = f'// {js_line}'
 
     USER_DEFINED_PTR_FUNC_DECL[func_name] = 'pointer'
@@ -445,7 +528,7 @@ def get_array_decl(n) -> str:
 
     js_line = f'const {array_var_name} = {dumps(items)};'
 
-    if array_var_name in USER_DEFINED_TYPES:
+    if array_var_name in TYPES:
         js_line = f'// {js_line}'
 
     USER_DEFINED_ARRAY_DECL[array_var_name] = items
@@ -486,7 +569,7 @@ def get_enum_decl(n) -> str:
 
     js_line = f'const {enum_var_name} = {dumps(items)};'
 
-    if enum_var_name in USER_DEFINED_TYPES:
+    if enum_var_name in TYPES:
         js_line = f'// {js_line}'
 
     USER_DEFINED_ENUM_DECL[enum_var_name] = items
@@ -569,7 +652,7 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
     with open(output_path, 'w+') as f:
         f.write(output_data)
 
-    pprint(USER_DEFINED_TYPES)
+    pprint(TYPES)
 
 
 if __name__ == '__main__':
