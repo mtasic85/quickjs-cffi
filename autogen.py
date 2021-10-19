@@ -8,7 +8,7 @@ from pycparser import c_ast, parse_file
 
 
 _QUICKJS_FFI_WRAP_PTR_FUNC_DECL = '''
-const _quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
+const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
     // wrap C function
     const c_types = types.map(type => {
         if (typeof type == 'string') {
@@ -54,6 +54,14 @@ const _quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
     };
 
     return js_func;
+};
+
+const _quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
+    try {
+        return __quickjs_ffi_wrap_ptr_func_decl(lib, name, nargs, ...types);
+    } catch (e) {
+        return undefined;
+    }
 };
 '''
 
