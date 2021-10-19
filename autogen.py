@@ -240,6 +240,7 @@ def _get_func_decl_return_type(n, kind: str) -> CType:
     return return_type
 
 
+'''
 def _get_func_decl_params(n, kind: str) -> list[tuple[str, CType]]:
     params: list[tuple[str, CType]] = []
     param: tuple[str, CType]
@@ -250,54 +251,6 @@ def _get_func_decl_params(n, kind: str) -> list[tuple[str, CType]]:
         type_name: str = _get_compatible_type_name(_get_leaf_names(n))
 
         if isinstance(m.type, c_ast.PtrDecl):
-            '''
-            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
-                param = (name, 'string')
-            else:
-                param = (name, 'pointer')
-            '''
-
-            '''
-            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
-                param = (name, 'string')
-            elif name in USER_DEFINED_TYPES:
-                raise TypeError(name)
-                param = (name, 'pointer')
-            else:
-                param = (name, 'pointer')
-            '''
-
-            '''
-            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType):
-                type_name = _get_compatible_type_name(m.type.type.type.names)
-
-                if type_name == 'char':
-                    param = (name, 'string')
-                else:
-                    if kind == 'TypedefFuncDecl':
-                        param = (name, 'pointer')
-                    else:
-                        if type_name in USER_DEFINED_TYPES:
-                            param = (name, USER_DEFINED_TYPES[type_name])
-                        else:
-                            param = (name, 'pointer')
-            else:
-                param = (name, 'pointer')
-            '''
-
-            '''
-            if kind == 'TypedefFuncDecl':
-                if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
-                    param = (name, 'string')
-                else:
-                    param = (name, 'pointer')
-            else:
-                if name in USER_DEFINED_TYPES:
-                    param = (name, USER_DEFINED_TYPES[name])
-                else:
-                    param = (name, 'pointer')
-            '''
-
             # if type_name == 'Fl_Callback':
             #     raise TypeError((kind, name, type_name))
 
@@ -331,12 +284,121 @@ def _get_func_decl_params(n, kind: str) -> list[tuple[str, CType]]:
                 param = (name, 'pointer')
             else:
                 param = (name, 'pointer')
-
         elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
             if type_name in PRIMITIVE_C_TYPES:
                 param = (name, type_name)
             elif type_name in TYPES:
                 param = (None, TYPES[type_name])
+            else:
+                raise TypeError(f'Unsupported type {type_name!r}')
+
+        params.append(param)
+
+    return params
+'''
+'''
+def _get_func_decl_params(n, kind: str) -> list[tuple[str, CType]]:
+    params: list[tuple[str, CType]] = []
+    param: tuple[str, CType]
+
+    for m in n.args.params:
+        assert isinstance(m, (c_ast.Typename, c_ast.Decl))
+        name = m.name
+        type_name: str = _get_compatible_type_name(_get_leaf_names(n))
+        
+        # if type_name == 'Fl_Callback':
+        #     raise TypeError((kind, name, type_name))
+
+        if isinstance(m.type, c_ast.PtrDecl):
+            if kind == 'TypedefFuncDecl' or kind == 'FuncDecl':
+                if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType):
+                    if type_name == 'char':
+                        param = (name, 'string')
+                    elif type_name in TYPES:
+                        t = TYPES[type_name]
+
+                        if isinstance(t, dict) and t['type'] in ('TypedefFuncDecl', 'FuncDecl'):
+                            t = {'type': 'PtrFuncDecl', 'types': t['types']}
+
+                        if type_name == 'Fl_Callback':
+                            # pprint(TYPES)
+                            # raise TypeError((kind, name, type_name, t))
+                            print('!', kind, name, type_name, type(t), t)
+                            input()
+
+                        param = (name, t)
+                    else:
+                        # param = (name, 'pointer')
+                        raise TypeError(f'Unsupported type {type_name!r}')
+                else:
+                    param = (name, 'pointer')
+            elif kind == 'PtrFuncDecl':
+                # if type_name in TYPES:
+                #     param = (name, TYPES[type_name])
+                # else:
+                #     param = (name, 'pointer')
+                # print('!', kind, name, type_name)
+                param = (name, 'pointer')
+            else:
+                param = (name, 'pointer')
+        elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
+            if type_name in TYPES:
+                param = (name, TYPES[type_name])
+            else:
+                raise TypeError(f'Unsupported type {type_name!r}')
+
+        params.append(param)
+
+    return params
+'''
+
+def _get_func_decl_params(n, kind: str) -> list[tuple[str, CType]]:
+    params: list[tuple[str, CType]] = []
+    param: tuple[str, CType]
+
+    for m in n.args.params:
+        assert isinstance(m, (c_ast.Typename, c_ast.Decl))
+        name = m.name
+        type_name: str = _get_compatible_type_name(_get_leaf_names(n))
+        
+        # if type_name == 'Fl_Callback':
+        #     raise TypeError((kind, name, type_name))
+
+        if isinstance(m.type, c_ast.PtrDecl):
+            if kind == 'TypedefFuncDecl' or kind == 'FuncDecl':
+                if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType):
+                    if type_name == 'char':
+                        param = (name, 'string')
+                    elif type_name in TYPES:
+                        t = TYPES[type_name]
+
+                        if isinstance(t, dict) and t['type'] in ('TypedefFuncDecl', 'FuncDecl'):
+                            t = {'type': 'PtrFuncDecl', 'types': t['types']}
+
+                        if type_name == 'Fl_Callback':
+                            # pprint(TYPES)
+                            # raise TypeError((kind, name, type_name, t))
+                            print('!', kind, name, type_name, type(t), t)
+                            input()
+
+                        param = (name, t)
+                    else:
+                        # param = (name, 'pointer')
+                        raise TypeError(f'Unsupported type {type_name!r}')
+                else:
+                    param = (name, 'pointer')
+            elif kind == 'PtrFuncDecl':
+                # if type_name in TYPES:
+                #     param = (name, TYPES[type_name])
+                # else:
+                #     param = (name, 'pointer')
+                # print('!', kind, name, type_name)
+                param = (name, 'pointer')
+            else:
+                param = (name, 'pointer')
+        elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
+            if type_name in TYPES:
+                param = (name, TYPES[type_name])
             else:
                 raise TypeError(f'Unsupported type {type_name!r}')
 
