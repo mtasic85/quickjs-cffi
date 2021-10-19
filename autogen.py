@@ -3,6 +3,8 @@ import argparse
 import subprocess
 from json import dumps
 from typing import Union
+from pprint import pprint
+from collections import ChainMap
 
 from pycparser import c_ast, parse_file
 
@@ -122,7 +124,21 @@ PRIMITIVE_C_TYPES_ALIASES = {
     'long double': 'longdouble',
 }
 
-USER_DEFINED_TYPES = {}
+USER_DEFINED_TYPE_DECL = {}
+USER_DEFINED_TYPEDEF_FUNC_DECL = {}
+USER_DEFINED_FUNC_DECL = {}
+USER_DEFINED_PTR_FUNC_DECL = {}
+USER_DEFINED_ARRAY_DECL = {}
+USER_DEFINED_ENUM_DECL = {}
+
+USER_DEFINED_TYPES = ChainMap(
+    USER_DEFINED_TYPE_DECL,
+    USER_DEFINED_TYPEDEF_FUNC_DECL,
+    USER_DEFINED_FUNC_DECL,
+    USER_DEFINED_PTR_FUNC_DECL,
+    USER_DEFINED_ARRAY_DECL,
+    USER_DEFINED_ENUM_DECL,
+)
 
 CType = Union[str, dict]
 
@@ -196,8 +212,22 @@ def _get_func_decl_params(n) -> list[tuple[str, CType]]:
         name = m.name
 
         if isinstance(m.type, c_ast.PtrDecl):
-            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
-                param = (name, 'string')
+            # if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType) and _get_compatible_type_name(m.type.type.type.names) == 'char':
+            #     param = (name, 'string')
+            # elif name in USER_DEFINED_TYPES:
+            #     raise TypeError(name)
+            #     param = (name, 'pointer')
+            # else:
+            #     param = (name, 'pointer')
+            if isinstance(m.type.type, c_ast.TypeDecl) and isinstance(m.type.type.type, c_ast.IdentifierType):
+                type_name = _get_compatible_type_name(m.type.type.type.names)
+
+                if type_name == 'char':
+                    param = (name, 'string')
+                elif type_name in USER_DEFINED_TYPES:
+                    param = (name, USER_DEFINED_TYPES[type_name])
+                else:
+                    param = (name, 'pointer')
             else:
                 param = (name, 'pointer')
         elif isinstance(m.type, c_ast.TypeDecl) and isinstance(m.type.type, c_ast.IdentifierType):
@@ -322,7 +352,7 @@ def get_type_decl(n, name=None) -> str:
     if type_decl_name in USER_DEFINED_TYPES:
         js_line = f'// {js_line}'
     
-    USER_DEFINED_TYPES[type_decl_name] = type_decls_fields
+    USER_DEFINED_TYPE_DECL[type_decl_name] = type_decls_fields
     return js_line
 
 
@@ -334,7 +364,12 @@ def get_typedef_func_decl(n) -> str:
     if func_name in USER_DEFINED_TYPES:
         js_line = f'// {js_line}'
 
-    USER_DEFINED_TYPES[func_name] = None # FIXME
+    USER_DEFINED_TYPEDEF_FUNC_DECL[func_name] = {
+        'type': 'FuncDecl',
+        'name': func_name,
+        'types': [return_type, *[param_type for param_name, param_type in params]],
+    }
+
     return js_line
 
 
@@ -346,7 +381,16 @@ def get_func_decl(n) -> str:
     if func_name in USER_DEFINED_TYPES:
         js_line = f'// {js_line}'
 
-    USER_DEFINED_TYPES[func_name] = None # FIXME
+    # USER_DEFINED_TYPES[func_name] = None # FIXME
+    # if func_name in ('Fl_Button_set_callback',):
+    #     raise TypeError(func_name)
+
+    USER_DEFINED_FUNC_DECL[func_name] = {
+        'type': 'FuncDecl',
+        'name': func_name,
+        'types': [return_type, *[param_type for param_name, param_type in params]],
+    }
+
     return js_line
 
 
@@ -358,7 +402,7 @@ def get_ptr_func_decl(n) -> str:
     if func_name in USER_DEFINED_TYPES:
         js_line = f'// {js_line}'
 
-    USER_DEFINED_TYPES[func_name] = 'pointer'
+    USER_DEFINED_PTR_FUNC_DECL[func_name] = 'pointer'
     return js_line
 
 
@@ -400,6 +444,11 @@ def get_array_decl(n) -> str:
         raise TypeError(f'get_array_decl: Unsupported {type(n.type)}')
 
     js_line = f'const {array_var_name} = {dumps(items)};'
+
+    if array_var_name in USER_DEFINED_TYPES:
+        js_line = f'// {js_line}'
+
+    USER_DEFINED_ARRAY_DECL[array_var_name] = items
     return js_line
 
 
@@ -436,6 +485,11 @@ def get_enum_decl(n) -> str:
         raise TypeError(f'get_enum_decl: Unsupported {type(n)}')
 
     js_line = f'const {enum_var_name} = {dumps(items)};'
+
+    if enum_var_name in USER_DEFINED_TYPES:
+        js_line = f'// {js_line}'
+
+    USER_DEFINED_ENUM_DECL[enum_var_name] = items
     return js_line
 
 
@@ -514,6 +568,8 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
 
     with open(output_path, 'w+') as f:
         f.write(output_data)
+
+    pprint(USER_DEFINED_TYPES)
 
 
 if __name__ == '__main__':
