@@ -125,7 +125,7 @@ PRIMITIVE_C_TYPES = {
     'long double': 'longdouble',
 }
 
-USER_DEFINED_DECL = {}
+USER_DEFINED_TYPE_DECL = {}
 USER_DEFINED_FUNC_DECL = {}
 USER_DEFINED_PTR_FUNC_DECL = {}
 USER_DEFINED_STRUCT_DECL = {}
@@ -135,16 +135,24 @@ USER_DEFINED_TYPEDEF_STRUCT = {}
 USER_DEFINED_TYPEDEF_FUNC_DECL = {}
 USER_DEFINED_TYPEDEF_PTR_DECL = {}
 
-USER_DEFINED_TYPES = ChainMap(
-    USER_DEFINED_DECL,
+USER_DEFINED_DECL = ChainMap(
+    USER_DEFINED_TYPE_DECL,
     USER_DEFINED_FUNC_DECL,
     USER_DEFINED_PTR_FUNC_DECL,
     USER_DEFINED_STRUCT_DECL,
     USER_DEFINED_ARRAY_DECL,
     USER_DEFINED_ENUM_DECL,
+)
+
+USER_DEFINED_TYPEDEF = ChainMap(
     USER_DEFINED_TYPEDEF_STRUCT,
     USER_DEFINED_TYPEDEF_FUNC_DECL,
     USER_DEFINED_TYPEDEF_PTR_DECL,
+)
+
+USER_DEFINED_TYPES = ChainMap(
+    USER_DEFINED_DECL,
+    USER_DEFINED_TYPEDEF,
 )
 
 TYPES = ChainMap(
@@ -153,6 +161,7 @@ TYPES = ChainMap(
 )
 
 CType = Union[str, dict]
+JsTypeLine = (CType, str)
 
 
 def get_leaf_node(n):
@@ -172,229 +181,126 @@ def get_leaf_name(n) -> list[str]:
         return get_leaf_names(n.type)
 
 
-def get_typedef_type_decl_struct(parent, n) -> (CType, str):
+def get_type_decl(n, decl=None) -> JsTypeLine:
     js_type: CType
     js_line: str
-    name: str
 
-    if isinstance(n, c_ast.Struct):
-        name = parent.declname or n.name
-        
+    if isinstance(n.type, c_ast.Enum):
+        t, l = get_enum(n.type, type_decl=n)
+
         js_type = {
-            'kind': 'TypeDeclStruct',
-            'name': name
+            'kind': 'TypeDecl',
+            'name': n.declname,
+            'type': t,
         }
 
-        USER_DEFINED_TYPEDEF_STRUCT[name] = js_type
-        js_line = f'export let {name} /* typedef struct */;'
-    else:
-        # js_line = f'/* get_typedef_type_decl_struct: {type(n)} */'
-        raise TypeError(type(n.type))
-
-    return js_type, js_line
-
-
-def get_typedef_type_decl(parent, n) -> (CType, str):
-    js_type: CType
-    js_line: str
-
-    if isinstance(n, c_ast.TypeDecl):
-        if isinstance(n.type, c_ast.Struct):
-            js_type, js_line = get_typedef_type_decl_struct(n, n.type)
-        else:
-            # js_line = f'/* get_typedef_type_decl: {type(n)} {type(n.type)} */'
-            raise TypeError(type(n.type))
-    else:
-        # js_line = f'/* get_typedef_type_decl: {type(n)} */'
-        raise TypeError(type(n.type))
-    
-    return js_type, js_line
-
-
-def get_typedef_func_decl_name(parent, n, typedef=None) -> str:
-    name: str = typedef.name
-    return name
-
-
-def get_typedef_func_decl_args_param_list_typename_type_decl(parent, n, typedef=None, func_decl=None) -> CType:
-    assert isinstance(n, c_ast.TypeDecl)
-    js_type: CType
-
-    if isinstance(n.type, c_ast.IdentifierType):
-        name: str = get_leaf_name(n.type)
-        js_type = TYPES[name]
-    else:
-        raise TypeError(type(n.type))
-
-    return js_type
-
-
-def get_typedef_func_decl_args_param_list_typename_ptr_decl_type_decl(parent, n, typedef=None, func_decl=None) -> CType:
-    assert isinstance(n, c_ast.TypeDecl)
-    js_type: CType
-
-    if isinstance(n.type, c_ast.IdentifierType):
-        js_type = get_leaf_name(n.type)
-    else:
-        raise TypeError(type(n.type))
-
-    return js_type
-
-
-def get_typedef_func_decl_args_param_list_typename_ptr_decl(parent, n, typedef=None, func_decl=None) -> CType:
-    assert isinstance(n, c_ast.PtrDecl)
-    js_type: CType
-
-    if isinstance(n.type, c_ast.TypeDecl):
-        t: CType = get_typedef_func_decl_args_param_list_typename_ptr_decl_type_decl(n, n.type, typedef=typedef, func_decl=func_decl)
-
-        if t == 'void':
-            js_type = 'pointer'
-        else:
-            js_type = {
-                'kind': 'PtrDecl',
-                'type': t,
-            }
-    else:
-        raise TypeError(type(n.type))
-
-    return js_type
-
-
-def get_typedef_func_decl_args_param_list_typename(parent, n, typedef=None, func_decl=None) -> CType:
-    assert isinstance(n, c_ast.Typename)
-    js_type: CType
-
-    if isinstance(n.type, c_ast.TypeDecl):
-        js_type = get_typedef_func_decl_args_param_list_typename_type_decl(n, n.type, typedef=typedef, func_decl=func_decl)
-    elif isinstance(n.type, c_ast.PtrDecl):
-        js_type = get_typedef_func_decl_args_param_list_typename_ptr_decl(n, n.type, typedef=typedef, func_decl=func_decl)
-    else:
-        raise TypeError(type(n.type))
-
-    return js_type
-
-
-def get_typedef_func_decl_args(parent, n, typedef=None) -> list[CType]:
-    js_params_types: list[CType] = []
-    assert isinstance(parent, c_ast.FuncDecl)
-    args: c_ast.ParamList = parent.args
-    assert isinstance(args, c_ast.ParamList)
-
-    for param in args.params:
-        assert isinstance(param, c_ast.Typename)
-        js_param_type: CType = get_typedef_func_decl_args_param_list_typename(args, param, typedef=typedef, func_decl=parent)
-        js_params_types.append(js_param_type)
-
-    return js_params_types
-
-
-def get_get_typedef_func_decl_type_type_decl(parent, n, typedef=None, func_decl=None) -> CType:
-    js_type: CType
-
-    if isinstance(n, c_ast.IdentifierType):
-        c_type: str = get_leaf_name(n)
-        js_type = TYPES[c_type]
+        js_line = f'export const {js_type["name"]} = {dumps(js_type["type"]["items"])}'
+        USER_DEFINED_TYPE_DECL[js_type['name']] = js_type
     else:
         raise TypeError(type(n))
 
-    return js_type
+    return js_type, js_line
 
 
-def get_typedef_func_decl_type(parent, n, typedef=None) -> CType:
+def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     js_type: CType
+    js_line: str
+    raise TypeError(type(n))
+    return js_type, js_line
 
-    if isinstance(n, c_ast.TypeDecl):
-        js_type = get_get_typedef_func_decl_type_type_decl(n, n.type, typedef=typedef, func_decl=parent)
+
+def get_ptr_decl(n) -> JsTypeLine:
+    js_type: CType
+    js_line: str
+    raise TypeError(type(n))
+    return js_type, js_line
+
+
+def get_struct(n) -> JsTypeLine:
+    js_type: CType
+    js_line: str
+    raise TypeError(type(n))
+    return js_type, js_line
+
+
+def get_enum(n, decl=None, type_decl=None) -> JsTypeLine:
+    js_type: CType
+    js_line: str
+
+    if decl or type_decl:
+        assert isinstance(n.values, c_ast.EnumeratorList)
+        assert isinstance(n.values.enumerators, list)
+        last_enum_field_value: int = -1
+
+        js_type = {
+            'kind': 'Enum',
+            'name': n.name,
+            'items': {},
+        }
+
+        for m in n.values.enumerators:
+            enum_field_name: str = m.name
+            enum_field_value: Any
+
+            if m.value:
+                if isinstance(m.value, c_ast.Constant):
+                    enum_field_value = eval(m.value.value)
+                elif m.value is None:
+                    enum_field_value = None
+                elif isinstance(m.value, c_ast.BinaryOp):
+                    enum_field_value = eval(f'{m.value.left.value} {m.value.op} {m.value.right.value}')
+                elif isinstance(m.value, c_ast.UnaryOp):
+                    enum_field_value = eval(f'{m.value.op} {m.value.expr.value}')
+                else:
+                    raise TypeError(f'get_enum: Unsupported {type(m.value)}')
+            else:
+                enum_field_value = last_enum_field_value + 1
+            
+            last_enum_field_value = enum_field_value
+            js_type['items'][enum_field_name] = enum_field_value
+
+        USER_DEFINED_ENUM_DECL[js_type["name"]] = js_type
+        js_line = f'export const {js_type["name"]} = {dumps(js_type["items"])}'
     else:
         raise TypeError(type(n))
 
-    return js_type
-
-
-def get_typedef_func_decl(parent, n, typedef=None) -> (CType, str):
-    print(parent)
-    assert parent is None or isinstance(parent, c_ast.Typedef)
-    assert isinstance(n, c_ast.FuncDecl)
-    js_type: str
-    js_line: str
-    typedef_name: str
-
-    if isinstance(n, c_ast.FuncDecl):
-        if isinstance(n.type, c_ast.TypeDecl):
-            if typedef is None:
-                typedef = parent
-
-            js_func_name: str = get_typedef_func_decl_name(n, n.type, typedef=typedef)
-            js_return_type: CType = get_typedef_func_decl_type(n, n.type, typedef=typedef)
-            js_args_types: list[CType] = get_typedef_func_decl_args(n, n.type, typedef=typedef)
-            
-            js_type = {
-                'kind': 'FuncDecl',
-                'func_name': js_func_name,
-                'return_type': js_return_type,
-                'args_types': js_args_types,
-            }
-            
-            USER_DEFINED_TYPEDEF_FUNC_DECL[js_func_name] = js_type
-            js_line = f'/* {js_func_name}: {js_return_type} = {js_args_types} */'
-        else:
-            # js_line = f'/* get_typedef_func_decl {type(n)} {type(n.type)} */'
-            raise TypeError(type(n.type))
-    else:
-        # js_line = f'/* get_typedef_func_decl {type(n)} */'
-        raise TypeError(type(n.type))
-
     return js_type, js_line
 
 
-def get_typedef_ptr_decl_func_decl(parent, n, typedef=None) -> CType:
-    assert isinstance(parent, c_ast.PtrDecl)
-    assert isinstance(n, c_ast.FuncDecl)
-    assert typedef is None or isinstance(typedef, c_ast.Typedef)
+def get_func_decl(n) -> JsTypeLine:
     js_type: CType
     js_line: str
-    t: CType
-    name: str
-
-    name = typedef.name
-    t, _ = get_typedef_func_decl(None, n, typedef=typedef)
-
-    js_type = {
-        'kind': 'PtrDecl',
-        'name': name,
-        'type': t,
-    }
-
-    USER_DEFINED_TYPEDEF_PTR_DECL[name] = js_type
-    js_line = f'export const {name} = {dumps(js_type)}'
+    raise TypeError(type(n))
     return js_type, js_line
 
 
-def get_typedef_ptr_decl(parent, n) -> (CType, str):
-    # return '/* get_typedef_ptr_decl_func_decl */'
-    assert isinstance(n, c_ast.PtrDecl)
+def get_enum_decl(n) -> JsTypeLine:
     js_type: CType
     js_line: str
-
-    if isinstance(n.type, c_ast.FuncDecl):
-        js_type, js_line = get_typedef_ptr_decl_func_decl(n, n.type, typedef=parent)
-    else:
-        raise TypeError(type(n.type))
-
+    raise TypeError(type(n))
     return js_type, js_line
 
 
-def get_typedef(parent, n) -> (CType, str):
+def get_array_decl(n) -> JsTypeLine:
+    js_type: CType
+    js_line: str
+    raise TypeError(type(n.type))
+    return js_type, js_line
+
+
+def get_typedef(n) -> JsTypeLine:
     js_type: CType
     js_line: str
 
     if isinstance(n.type, c_ast.TypeDecl):
-        js_type, js_line = get_typedef_type_decl(n, n.type)
+        # js_type, js_line = get_typedef_type_decl(n, n.type)
+        raise TypeError(type(n.type))
     elif isinstance(n.type, c_ast.FuncDecl):
-        js_type, js_line = get_typedef_func_decl(n, n.type)
+        # js_type, js_line = get_typedef_func_decl(n, n.type)
+        raise TypeError(type(n.type))
     elif isinstance(n.type, c_ast.PtrDecl):
-        js_type, js_line = get_typedef_ptr_decl(n, n.type)
+        # js_type, js_line = get_typedef_ptr_decl(n, n.type)
+        raise TypeError(type(n.type))
     else:
         # js_line = f'/* get_typedef: Unsupported {type(n.type)} */'
         raise TypeError(type(n.type))
@@ -402,111 +308,25 @@ def get_typedef(parent, n) -> (CType, str):
     return js_type, js_line
 
 
-def get_enum(parent, n) -> (CType, str):
-    js_type: CType
-    js_line: str = ''
-    values = n.values
-    decl_name: str = parent.name
-    enum_name: str = n.name
-    enum_fields: dict[str, Any] = {}
-    last_enum_field_value: int = -1
+def get_decl(n) -> JsTypeLine:
+    js_type: CType = None
+    js_line: str = '/* unset */'
 
-    assert isinstance(values, c_ast.EnumeratorList)
-
-    for m in values.enumerators:
-        enum_field_name: str = m.name
-        enum_field_value: Any
-
-        if m.value:
-            if isinstance(m.value, c_ast.Constant):
-                enum_field_value = eval(m.value.value)
-            elif m.value is None:
-                enum_field_value = None
-            elif isinstance(m.value, c_ast.BinaryOp):
-                enum_field_value = eval(f'{m.value.left.value} {m.value.op} {m.value.right.value}')
-            elif isinstance(m.value, c_ast.UnaryOp):
-                enum_field_value = eval(f'{m.value.op} {m.value.expr.value}')
-            else:
-                raise TypeError(f'get_enum: Unsupported {type(m.value)}')
-        else:
-            enum_field_value = last_enum_field_value + 1
-        
-        last_enum_field_value = enum_field_value
-        enum_fields[enum_field_name] = enum_field_value
-
-    if decl_name:
-        USER_DEFINED_DECL[decl_name] = enum_fields
-        js_line += f'export const {decl_name} = {enum_fields};\n'
-
-    if enum_name:
-        USER_DEFINED_ENUM_DECL[enum_name] = enum_fields
-        js_line += f'export const {enum_name} = {enum_fields};\n'
-
-    js_type = {
-        'kind': 'Enum',
-        'name': enum_name or decl_name,
-        'type': enum_fields,
-    }
-
-    return js_type, js_line
-
-
-def get_decl_type_decl(parent, n) -> (CType, str):
-    js_type: CType
-    js_line: str
-
-    if isinstance(n, c_ast.TypeDecl) and isinstance(n.type, c_ast.Enum):
-        js_type, js_line = get_enum(parent, n.type)
+    if isinstance(n.type, c_ast.Enum):
+        js_type, js_line = get_enum(n.type, decl=n)
+    elif isinstance(n.type, c_ast.TypeDecl):
+        js_type, js_line = get_type_decl(n.type, decl=n)
     else:
-        # js_line = f'/* get_decl_type_decl: Unsupported type {n.type} */'
-        raise TypeError(type(n.type))
-
-    return js_type, js_line
-
-def get_decl_enum_decl(parent, n) -> (CType, str):
-    js_type: CType
-    js_line: str
-
-    if isinstance(n, c_ast.Enum):
-        js_type, js_line = get_enum(parent, n)
-    else:
-        # js_line = f'/* get_decl_enum_decl: Unsupported type {n.type} */'
-        raise TypeError(type(n.type))
-
-    return js_type, js_line
-
-
-def get_decl_func_decl(parent, n) -> (CType, str):
-    return None, '/* get_decl_func_decl */'
-
-
-def get_decl_array_decl(parent, n) -> (CType, str):
-    return None, '/* get_decl_array_decl */'
-
-
-def get_decl(parent, n) -> (CType, str):
-    js_type: CType
-    js_line: str
-
-    if isinstance(n.type, c_ast.TypeDecl):
-        js_type, js_line = get_decl_type_decl(n, n.type)
-    elif isinstance(n.type, c_ast.Enum):
-        js_type, js_line = get_decl_enum_decl(n, n.type)
-    elif isinstance(n.type, c_ast.FuncDecl):
-        js_type, js_line = get_decl_func_decl(n, n.type)
-    elif isinstance(n.type, c_ast.ArrayDecl):
-        js_type, js_line = get_decl_array_decl(n, n.type)
-    else:
-        # js_line = f'/* get_decl: Unsupported {type(n.type)} */'
-        raise TypeError(type(n.type))
+        # raise TypeError(type(n.type))
+        pass
     
     return js_type, js_line
 
 
 def get_file_ast(file_ast, shared_library: str) -> str:
     js_lines: list[str]
-    js_type: CType
-    js_line: str
+    js_type: CType = None
+    js_line: str = '/* unset */'
 
     js_lines = [
         "import { CFunction, CCallback } from './quickjs-ffi.js';",
@@ -518,11 +338,12 @@ def get_file_ast(file_ast, shared_library: str) -> str:
         print(n)
 
         if isinstance(n, c_ast.Typedef):
-            js_type, js_line = get_typedef(file_ast, n)
+            # js_type, js_line = get_typedef(n)
+            pass
         elif isinstance(n, c_ast.Decl):
-            js_type, js_line = get_decl(file_ast, n)
-        else:
-            js_type, js_line = f'/* get_file_ast: Unsupported type {type(n)} */'
+            js_type, js_line = get_decl(n)
+        # else:
+        #     raise TypeError(type(n.type))
 
         js_lines.append(js_line)
 
