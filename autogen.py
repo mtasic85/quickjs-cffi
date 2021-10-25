@@ -181,9 +181,15 @@ def get_leaf_name(n) -> list[str]:
         return get_leaf_names(n.type)
 
 
-def get_type_decl(n, decl=None) -> JsTypeLine:
-    js_type: CType
-    js_line: str
+def get_typename(n, func_decl=None) -> JsTypeLine:
+    js_type: CType = None
+    js_line: str = '/* unset */'
+    return js_type, js_line
+
+
+def get_type_decl(n, decl=None, func_decl=None) -> JsTypeLine:
+    js_type: CType = None
+    js_line: str = '/* unset */'
 
     if isinstance(n.type, c_ast.Enum):
         t, l = get_enum(n.type, type_decl=n)
@@ -196,8 +202,11 @@ def get_type_decl(n, decl=None) -> JsTypeLine:
 
         js_line = f'export const {js_type["name"]} = {dumps(js_type["type"]["items"])}'
         USER_DEFINED_TYPE_DECL[js_type['name']] = js_type
+    elif isinstance(n.type, c_ast.IdentifierType):
+        name: str = get_leaf_name(n.type)
+        js_type = name
     else:
-        raise TypeError(type(n))
+        raise TypeError(n)
 
     return js_type, js_line
 
@@ -209,10 +218,18 @@ def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_ptr_decl(n) -> JsTypeLine:
-    js_type: CType
-    js_line: str
-    raise TypeError(type(n))
+def get_ptr_decl(n, decl=None, func_decl=None) -> JsTypeLine:
+    js_type: CType = None
+    js_line: str = '/* unset */'
+
+    if decl:
+        pass
+    elif func_decl:
+        pass
+    else:
+        raise TypeError(type(n))
+    # raise TypeError(type(n))
+    
     return js_type, js_line
 
 
@@ -267,10 +284,33 @@ def get_enum(n, decl=None, type_decl=None) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_func_decl(n) -> JsTypeLine:
-    js_type: CType
-    js_line: str
-    raise TypeError(type(n))
+def get_func_decl(n, decl=None) -> JsTypeLine:
+    js_type: CType = None
+    js_line: str = '/* unset */'
+
+    if decl:
+        assert isinstance(n.args, c_ast.ParamList)
+        assert isinstance(n.args.params, list)
+        
+        js_type = {
+            'kind': 'FuncDecl',
+            'name': decl.name,
+            'return_type': None,
+            'params_types': [],
+        }
+
+        t, l = get_node(n.type, func_decl=n)
+        js_type['return_type'] = t
+
+        for m in n.args.params:
+            t, l = get_node(m, func_decl=n)
+            js_type['params_types'].append(t)
+
+        js_line = f'/* {js_type["name"]}: {js_type["return_type"]} = {dumps(js_type["params_types"])} */'
+        USER_DEFINED_FUNC_DECL[js_type['name']] = js_type
+    else:
+        raise TypeError(type(n))
+    
     return js_type, js_line
 
 
@@ -308,7 +348,7 @@ def get_typedef(n) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_decl(n) -> JsTypeLine:
+def get_decl(n, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
 
@@ -316,10 +356,34 @@ def get_decl(n) -> JsTypeLine:
         js_type, js_line = get_enum(n.type, decl=n)
     elif isinstance(n.type, c_ast.TypeDecl):
         js_type, js_line = get_type_decl(n.type, decl=n)
+    elif isinstance(n.type, c_ast.FuncDecl):
+        js_type, js_line = get_func_decl(n.type, decl=n)
+    elif isinstance(n.type, c_ast.PtrDecl):
+        js_type, js_line = get_ptr_decl(n.type, decl=n)
     else:
-        # raise TypeError(type(n.type))
-        pass
+        raise TypeError(type(n.type))
     
+    return js_type, js_line
+
+
+def get_node(n, func_decl=None) -> JsTypeLine:
+    js_type: CType = None
+    js_line: str = '/* unset */'
+
+    if func_decl:
+        if isinstance(n, c_ast.Decl):
+            js_type, js_line = get_decl(n, func_decl=func_decl)
+        elif isinstance(n, c_ast.TypeDecl):
+            js_type, js_line = get_type_decl(n, func_decl=func_decl)
+        elif isinstance(n, c_ast.PtrDecl):
+            js_type, js_line = get_ptr_decl(n, func_decl=func_decl)
+        elif isinstance(n, c_ast.Typename):
+            js_type, js_line = get_typename(n, func_decl=func_decl)
+        else:
+            raise TypeError(n)
+    else:
+        raise TypeError(n)
+
     return js_type, js_line
 
 
@@ -342,8 +406,8 @@ def get_file_ast(file_ast, shared_library: str) -> str:
             pass
         elif isinstance(n, c_ast.Decl):
             js_type, js_line = get_decl(n)
-        # else:
-        #     raise TypeError(type(n.type))
+        else:
+            raise TypeError(type(n.type))
 
         js_lines.append(js_line)
 
@@ -389,7 +453,7 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
     with open(output_path, 'w+') as f:
         f.write(output_data)
 
-    pprint(TYPES)
+    pprint(TYPES, sort_dicts=False)
 
 
 if __name__ == '__main__':
