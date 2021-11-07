@@ -270,29 +270,27 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_ptr_decl(n, decl=None, func_decl=None) -> JsTypeLine:
+def get_ptr_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
     js_name: str | None = None
 
-    # if decl and func_decl:
-    #     t, l = get_node(n.type, decl=decl, func_decl=func_decl)
+    if typedef:
+        t, _ = get_node(n.type, typedef=typedef)
+        js_name = typedef.name
 
-    #     js_type = {
-    #         'kind': 'PtrFuncDecl',
-    #         'name': decl.name,
-    #         'type': t,
-    #     }
-    # elif decl:
-    #     pass
-    # elif func_decl:
-    #     pass
-    # else:
-    #     raise TypeError(type(n))
-    if decl:
+        js_type = {
+            'kind': 'PtrDecl',
+            'name': js_name,
+            'type': t,
+        }
+
+        if js_name:
+            USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
+    elif decl:
         raise TypeError(type(n))
     elif func_decl:
-        t, _ = get_node(n.type, decl=decl, func_decl=func_decl)
+        t, _ = get_node(n.type, func_decl=func_decl)
         js_name = None # NOTE: in this implementation is always None, but can be set to real name
 
         js_type = {
@@ -386,6 +384,7 @@ def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     js_line: str = '/* unset */'
     js_name: str | None = None
 
+    '''
     if typedef:
         assert isinstance(n.args, c_ast.ParamList)
         assert isinstance(n.args.params, list)
@@ -435,7 +434,38 @@ def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     #     USER_DEFINED_FUNC_DECL[js_type['name']] = js_type
     else:
         raise TypeError(type(n))
-    
+    '''
+
+    assert isinstance(n.args, c_ast.ParamList)
+    assert isinstance(n.args.params, list)
+    typedef_js_name: str | None = None
+
+    if typedef:
+        typedef_js_name = typedef.name
+
+    js_name = n.type.declname
+
+    js_type = {
+        'kind': 'FuncDecl',
+        'name': js_name,
+        'return_type': None,
+        'params_types': [],
+    }
+
+    # return type
+    t, _ = get_node(n.type, typedef=typedef, func_decl=n)
+    js_type['return_type'] = t
+
+    # params types
+    for m in n.args.params:
+        t, _ = get_node(m, func_decl=n)
+        js_type['params_types'].append(t)
+
+    if typedef_js_name:
+        USER_DEFINED_TYPEDEF_FUNC_DECL[typedef_js_name] = js_type
+
+    js_line = f'func_decl: {dumps(js_type)}'
+
     if js_name:
         USER_DEFINED_FUNC_DECL[js_name] = js_type
 
@@ -466,10 +496,8 @@ def get_typedef(n) -> JsTypeLine:
     elif isinstance(n.type, c_ast.FuncDecl):
         t, _ = get_func_decl(n.type, typedef=n)
     elif isinstance(n.type, c_ast.PtrDecl):
-        # js_type, js_line = get_typedef_ptr_decl(n, n.type)
-        raise TypeError(type(n.type))
+        t, _ = get_ptr_decl(n.type, typedef=n)
     else:
-        # js_line = f'/* get_typedef: Unsupported {type(n.type)} */'
         raise TypeError(type(n.type))
 
     js_type = {
@@ -534,6 +562,8 @@ def get_node(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
         js_type, js_line = get_type_decl(n, decl=decl, func_decl=func_decl)
     elif isinstance(n, c_ast.PtrDecl):
         js_type, js_line = get_ptr_decl(n, decl=decl, func_decl=func_decl)
+    elif isinstance(n, c_ast.FuncDecl):
+        js_type, js_line = get_func_decl(n, typedef=typedef, decl=decl)
     elif isinstance(n, c_ast.Typename):
         js_type, js_line = get_typename(n, decl=decl, func_decl=func_decl)
     else:
