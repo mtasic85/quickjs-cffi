@@ -192,9 +192,10 @@ def get_typename(n, func_decl=None) -> JsTypeLine:
 def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
+    js_name: str | None = None
 
     if typedef:
-        js_name: str | None = typedef.name
+        js_name = typedef.name
 
         if isinstance(n.type, c_ast.Struct):
             t, _ = get_struct(n.type, typedef=typedef, type_decl=n)
@@ -208,13 +209,13 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
             if js_name:
                 USER_DEFINED_TYPEDEF_STRUCT[js_name] = js_type
 
-            js_line = f'type_decl struct: {dumps(js_type)}'
+            js_line = f'type_decl (typedef) struct: {dumps(js_type)}'
         else:
             raise TypeError(n)
     elif decl or func_decl:
         if isinstance(n.type, c_ast.Enum):
-            t, l = get_enum(n.type, type_decl=n)
-            js_name: str = n.declname
+            t, _ = get_enum(n.type, type_decl=n)
+            js_name = n.declname
 
             js_type = {
                 'kind': 'TypeDecl',
@@ -222,21 +223,24 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
                 'type': t,
             }
 
-            js_line = f'export const {js_name} = {dumps(js_type["type"]["items"])};'
-            USER_DEFINED_TYPE_DECL[js_name] = js_type
+            if js_name:
+                USER_DEFINED_ENUM_DECL[js_name] = js_type
+
+            js_line = f'type_decl (decl/func_decl) enum: {dumps(js_type)}'
         elif isinstance(n.type, c_ast.PtrDecl):
-            t, l = get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+            t, _ = get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+            js_name = decl.name
 
             js_type = {
-                'kind': 'PtrFuncDecl',
-                'name': decl.name,
+                'kind': 'TypeDecl',
+                'name': js_name,
                 'type': t,
             }
 
-            js_line = f'/* type_decl ptr_decl: {l} */'
+            js_line = f'type_decl (decl/func_decl) ptr_decl: {dumps(js_type)}'
         elif isinstance(n.type, c_ast.IdentifierType):
-            name: str = get_leaf_name(n.type)
-            js_type = name
+            js_type = get_leaf_name(n.type) # str repo of type in C
+            js_line = f'type_decl identifier: {js_type}'
         else:
             raise TypeError(n)
     else:
@@ -244,7 +248,7 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
 
     if js_name:
         USER_DEFINED_TYPE_DECL[js_name] = js_type
-
+    
     return js_type, js_line
 
 
