@@ -1,5 +1,6 @@
 import os
 import argparse
+import traceback
 import subprocess
 from json import dumps
 from typing import Union, Any
@@ -127,10 +128,11 @@ PRIMITIVE_C_TYPES = {
 
 USER_DEFINED_TYPE_DECL = {}
 USER_DEFINED_FUNC_DECL = {}
-USER_DEFINED_PTR_FUNC_DECL = {}
+USER_DEFINED_PTR_FUNC_DECL = {} # ???
 USER_DEFINED_STRUCT_DECL = {}
 USER_DEFINED_ARRAY_DECL = {}
 USER_DEFINED_ENUM_DECL = {}
+
 USER_DEFINED_TYPEDEF_STRUCT = {}
 USER_DEFINED_TYPEDEF_FUNC_DECL = {}
 USER_DEFINED_TYPEDEF_PTR_DECL = {}
@@ -138,7 +140,7 @@ USER_DEFINED_TYPEDEF_PTR_DECL = {}
 USER_DEFINED_DECL = ChainMap(
     USER_DEFINED_TYPE_DECL,
     USER_DEFINED_FUNC_DECL,
-    USER_DEFINED_PTR_FUNC_DECL,
+    USER_DEFINED_PTR_FUNC_DECL, # ???
     USER_DEFINED_STRUCT_DECL,
     USER_DEFINED_ARRAY_DECL,
     USER_DEFINED_ENUM_DECL,
@@ -187,35 +189,61 @@ def get_typename(n, func_decl=None) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_type_decl(n, decl=None, func_decl=None) -> JsTypeLine:
+def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
 
-    if isinstance(n.type, c_ast.Enum):
-        t, l = get_enum(n.type, type_decl=n)
-        js_name: str = n.declname
+    if typedef:
+        js_name: str | None = typedef.name
 
-        js_type = {
-            'kind': 'TypeDecl',
-            'name': js_name,
-            'type': t,
-        }
+        if isinstance(n.type, c_ast.Struct):
+            t, _ = get_struct(n.type, typedef=typedef, type_decl=n)
+            
+            js_type = {
+                'kind': 'TypeDecl',
+                'name': js_name,
+                'type': t,
+            }
 
-        js_line = f'export const {js_name} = {dumps(js_type["type"]["items"])};'
-        USER_DEFINED_TYPE_DECL[js_name] = js_type
-    elif isinstance(n.type, c_ast.PtrDecl):
-        t, l = get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+            if js_name:
+                USER_DEFINED_TYPEDEF_STRUCT[js_name] = js_type
 
-        js_type = {
-            'kind': 'PtrFuncDecl',
-            'name': decl.name,
-            'type': t,
-        }
-    elif isinstance(n.type, c_ast.IdentifierType):
-        name: str = get_leaf_name(n.type)
-        js_type = name
+            js_line = f'type_decl struct: {dumps(js_type)}'
+        else:
+            raise TypeError(n)
+    elif decl or func_decl:
+        if isinstance(n.type, c_ast.Enum):
+            t, l = get_enum(n.type, type_decl=n)
+            js_name: str = n.declname
+
+            js_type = {
+                'kind': 'TypeDecl',
+                'name': js_name,
+                'type': t,
+            }
+
+            js_line = f'export const {js_name} = {dumps(js_type["type"]["items"])};'
+            USER_DEFINED_TYPE_DECL[js_name] = js_type
+        elif isinstance(n.type, c_ast.PtrDecl):
+            t, l = get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+
+            js_type = {
+                'kind': 'PtrFuncDecl',
+                'name': decl.name,
+                'type': t,
+            }
+
+            js_line = f'/* type_decl ptr_decl: {l} */'
+        elif isinstance(n.type, c_ast.IdentifierType):
+            name: str = get_leaf_name(n.type)
+            js_type = name
+        else:
+            raise TypeError(n)
     else:
         raise TypeError(n)
+
+    if js_name:
+        USER_DEFINED_TYPE_DECL[js_name] = js_type
 
     return js_type, js_line
 
@@ -243,10 +271,34 @@ def get_ptr_decl(n, decl=None, func_decl=None) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_struct(n) -> JsTypeLine:
-    js_type: CType
-    js_line: str
-    raise TypeError(type(n))
+def get_struct(n, typedef=None, type_decl=None) -> JsTypeLine:
+    js_type: CType = None
+    js_line: str = '/* unset */'
+    js_name: str
+    js_fields: dict
+    
+    if n.name:
+        js_name = n.name
+    elif type_decl and type_decl.declname:
+        js_name = type_decl.declname
+    elif typedef and typedef.name:
+        js_name = typedef.name
+    else:
+        raise ValueError(f'Could not get name of struct node {n}')
+
+    # NOTE: does not parse struct fields
+    js_fields = {}
+
+    js_type = {
+        'kind': 'Struct',
+        'name': js_name,
+        'fields': js_fields,
+    }
+
+    if js_name:
+        USER_DEFINED_STRUCT_DECL[js_name] = js_type
+
+    js_line = f'struct: {dumps(js_type)}'
     return js_type, js_line
 
 
@@ -287,18 +339,20 @@ def get_enum(n, decl=None, type_decl=None) -> JsTypeLine:
             js_type['items'][enum_field_name] = enum_field_value
 
         USER_DEFINED_ENUM_DECL[js_type["name"]] = js_type
-        js_line = f'export const {js_type["name"]} = {dumps(js_type["items"])}'
+        js_line = f'enum: {dumps(js_type)}'
     else:
         raise TypeError(type(n))
 
     return js_type, js_line
 
 
-def get_func_decl(n, decl=None) -> JsTypeLine:
+def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
 
-    if decl:
+    if typedef:
+        raise TypeError(n)
+    elif decl:
         assert isinstance(n.args, c_ast.ParamList)
         assert isinstance(n.args.params, list)
         
@@ -324,37 +378,43 @@ def get_func_decl(n, decl=None) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_enum_decl(n) -> JsTypeLine:
-    js_type: CType
-    js_line: str
-    raise TypeError(type(n))
-    return js_type, js_line
+# def get_enum_decl(n) -> JsTypeLine:
+#     js_type: CType
+#     js_line: str
+#     raise TypeError(type(n))
+#     return js_type, js_line
 
 
-def get_array_decl(n) -> JsTypeLine:
-    js_type: CType
-    js_line: str
-    raise TypeError(type(n.type))
-    return js_type, js_line
+# def get_array_decl(n) -> JsTypeLine:
+#     js_type: CType
+#     js_line: str
+#     raise TypeError(type(n.type))
+#     return js_type, js_line
 
 
 def get_typedef(n) -> JsTypeLine:
     js_type: CType
-    js_line: str
+    js_line: str = '/* unset */'
+    js_name: str = n.name
 
     if isinstance(n.type, c_ast.TypeDecl):
-        # js_type, js_line = get_typedef_type_decl(n, n.type)
-        raise TypeError(type(n.type))
+        t, _ = get_type_decl(n.type, typedef=n)
     elif isinstance(n.type, c_ast.FuncDecl):
-        # js_type, js_line = get_typedef_func_decl(n, n.type)
-        raise TypeError(type(n.type))
+        t, _ = get_func_decl(n.type, typedef=n)
     elif isinstance(n.type, c_ast.PtrDecl):
         # js_type, js_line = get_typedef_ptr_decl(n, n.type)
         raise TypeError(type(n.type))
     else:
         # js_line = f'/* get_typedef: Unsupported {type(n.type)} */'
         raise TypeError(type(n.type))
-    
+
+    js_type = {
+        'kind': 'Typedef',
+        'name': js_name,
+        'type': t,
+    }
+
+    js_line = f'typedef: {dumps(js_type)}'
     return js_type, js_line
 
 
@@ -419,8 +479,8 @@ def get_file_ast(file_ast, shared_library: str) -> str:
         print(n)
 
         if isinstance(n, c_ast.Typedef):
-            # js_type, js_line = get_typedef(n)
-            pass
+            js_type, js_line = get_typedef(n)
+            # raise TypeError(type(n.type))
         elif isinstance(n, c_ast.Decl):
             js_type, js_line = get_decl(n)
         else:
@@ -463,14 +523,54 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
     assert isinstance(file_ast, c_ast.FileAST)
 
     # wrap C code into JS
-    output_data: str = get_file_ast(file_ast, shared_library=shared_library)
+    try:
+        output_data: str = get_file_ast(file_ast, shared_library=shared_library)
+    except Exception as e:
+        traceback.print_exc()
+        output_data = ''
+
     print('-' * 20)
     print(output_data)
 
     with open(output_path, 'w+') as f:
         f.write(output_data)
 
-    pprint(TYPES, sort_dicts=False)
+    # pprint(TYPES, sort_dicts=False)
+    print('USER_DEFINED_TYPE_DECL:')
+    pprint(USER_DEFINED_TYPE_DECL, sort_dicts=False)
+    print()
+
+    print('USER_DEFINED_FUNC_DECL:')
+    pprint(USER_DEFINED_FUNC_DECL, sort_dicts=False)
+    print()
+    
+    print('USER_DEFINED_PTR_FUNC_DECL:')
+    pprint(USER_DEFINED_PTR_FUNC_DECL, sort_dicts=False)
+    print()
+    
+    print('USER_DEFINED_STRUCT_DECL:')
+    pprint(USER_DEFINED_STRUCT_DECL, sort_dicts=False)
+    print()
+    
+    print('USER_DEFINED_ARRAY_DECL:')
+    pprint(USER_DEFINED_ARRAY_DECL, sort_dicts=False)
+    print()
+    
+    print('USER_DEFINED_ENUM_DECL:')
+    pprint(USER_DEFINED_ENUM_DECL, sort_dicts=False)
+    print()
+    
+    print('USER_DEFINED_TYPEDEF_STRUCT:')
+    pprint(USER_DEFINED_TYPEDEF_STRUCT, sort_dicts=False)
+    print()
+    
+    print('USER_DEFINED_TYPEDEF_FUNC_DECL:')
+    pprint(USER_DEFINED_TYPEDEF_FUNC_DECL, sort_dicts=False)
+    print()
+    
+    print('USER_DEFINED_TYPEDEF_PTR_DECL:')
+    pprint(USER_DEFINED_TYPEDEF_PTR_DECL, sort_dicts=False)
+    print()
 
 
 if __name__ == '__main__':
