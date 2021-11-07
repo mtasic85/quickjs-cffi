@@ -128,7 +128,6 @@ PRIMITIVE_C_TYPES = {
 
 USER_DEFINED_TYPE_DECL = {}
 USER_DEFINED_FUNC_DECL = {}
-USER_DEFINED_PTR_FUNC_DECL = {} # ???
 USER_DEFINED_STRUCT_DECL = {}
 USER_DEFINED_ARRAY_DECL = {}
 USER_DEFINED_ENUM_DECL = {}
@@ -140,7 +139,6 @@ USER_DEFINED_TYPEDEF_PTR_DECL = {}
 USER_DEFINED_DECL = ChainMap(
     USER_DEFINED_TYPE_DECL,
     USER_DEFINED_FUNC_DECL,
-    USER_DEFINED_PTR_FUNC_DECL, # ???
     USER_DEFINED_STRUCT_DECL,
     USER_DEFINED_ARRAY_DECL,
     USER_DEFINED_ENUM_DECL,
@@ -230,9 +228,6 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
             js_line = f'type_decl (typedef) struct: {dumps(js_type)}'
         else:
             raise TypeError(n)
-
-        if js_name:
-            USER_DEFINED_TYPE_DECL[js_name] = js_type
     elif decl or func_decl:
         if isinstance(n.type, c_ast.Enum):
             t, _ = get_enum(n.type, type_decl=n)
@@ -266,6 +261,9 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
             raise TypeError(n)
     else:
         raise TypeError(n)
+
+    if js_name:
+        USER_DEFINED_TYPE_DECL[js_name] = js_type
 
     return js_type, js_line
 
@@ -423,7 +421,7 @@ def get_func_decl(n, typedef=None, decl=None, ptr_decl=None) -> JsTypeLine:
     if not ptr_decl and typedef_js_name:
         USER_DEFINED_TYPEDEF_FUNC_DECL[typedef_js_name] = js_type
 
-    if not ptr_decl and decl_js_name:
+    if not typedef and not ptr_decl and decl_js_name:
         USER_DEFINED_FUNC_DECL[decl_js_name] = js_type
 
     js_line = f'func_decl: {dumps(js_type)}'
@@ -547,6 +545,14 @@ def preprocess_header_file(compiler: str, input_path: str, output_path: str):
         f.write(output)
 
 
+def optmize_defs(defs) -> Any:
+    raise NotImplementedError('')
+
+
+def translate_defs_to_js(defs) -> str:
+    return ''
+
+
 def parse_and_convert(compiler: str, shared_library: str, input_path: str, output_path: str):
     # check existance of input_path
     assert os.path.exists(input_path)
@@ -565,12 +571,8 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
     assert isinstance(file_ast, c_ast.FileAST)
 
     # wrap C code into JS
-    try:
-        output_data: str = get_file_ast(file_ast, shared_library=shared_library)
-    except Exception as e:
-        raise e
-        traceback.print_exc()
-        output_data = ''
+    defs = get_file_ast(file_ast, shared_library=shared_library)
+    output_data: str = translate_defs_to_js(defs)
 
     print('-' * 20)
     print(output_data)
@@ -585,10 +587,6 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
 
     print('USER_DEFINED_FUNC_DECL:')
     pprint(USER_DEFINED_FUNC_DECL, sort_dicts=False)
-    print()
-    
-    print('USER_DEFINED_PTR_FUNC_DECL:')
-    pprint(USER_DEFINED_PTR_FUNC_DECL, sort_dicts=False)
     print()
     
     print('USER_DEFINED_STRUCT_DECL:')
