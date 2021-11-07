@@ -288,7 +288,14 @@ def get_ptr_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
         if js_name:
             USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
     elif decl:
-        raise TypeError(type(n))
+        t, _ = get_node(n.type, decl=decl)
+        js_name = None # NOTE: in this implementation is always None, but can be set to real name
+
+        js_type = {
+            'kind': 'PtrDecl',
+            'name': js_name,
+            'type': t,
+        }
     elif func_decl:
         t, _ = get_node(n.type, func_decl=func_decl)
         js_name = None # NOTE: in this implementation is always None, but can be set to real name
@@ -439,11 +446,15 @@ def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     assert isinstance(n.args, c_ast.ParamList)
     assert isinstance(n.args.params, list)
     typedef_js_name: str | None = None
+    decl_js_name: str | None = None
 
     if typedef:
         typedef_js_name = typedef.name
-
-    js_name = n.type.declname
+        decl_js_name = n.type.declname
+        js_name = decl_js_name
+    elif decl:
+        decl_js_name = decl.name
+        js_name = decl_js_name
 
     js_type = {
         'kind': 'FuncDecl',
@@ -464,11 +475,10 @@ def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     if typedef_js_name:
         USER_DEFINED_TYPEDEF_FUNC_DECL[typedef_js_name] = js_type
 
+    if decl_js_name:
+        USER_DEFINED_FUNC_DECL[decl_js_name] = js_type
+
     js_line = f'func_decl: {dumps(js_type)}'
-
-    if js_name:
-        USER_DEFINED_FUNC_DECL[js_name] = js_type
-
     return js_type, js_line
 
 
@@ -557,7 +567,7 @@ def get_node(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
         raise TypeError(n)
     '''
     if isinstance(n, c_ast.Decl):
-        js_type, js_line = get_decl(n, decl=decl, func_decl=func_decl)
+        js_type, js_line = get_decl(n, func_decl=func_decl)
     elif isinstance(n, c_ast.TypeDecl):
         js_type, js_line = get_type_decl(n, decl=decl, func_decl=func_decl)
     elif isinstance(n, c_ast.PtrDecl):
@@ -588,7 +598,6 @@ def get_file_ast(file_ast, shared_library: str) -> str:
 
         if isinstance(n, c_ast.Typedef):
             js_type, js_line = get_typedef(n)
-            # raise TypeError(type(n.type))
         elif isinstance(n, c_ast.Decl):
             js_type, js_line = get_decl(n)
         else:
@@ -634,6 +643,7 @@ def parse_and_convert(compiler: str, shared_library: str, input_path: str, outpu
     try:
         output_data: str = get_file_ast(file_ast, shared_library=shared_library)
     except Exception as e:
+        raise e
         traceback.print_exc()
         output_data = ''
 
