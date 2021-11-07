@@ -391,58 +391,6 @@ def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     js_line: str = '/* unset */'
     js_name: str | None = None
 
-    '''
-    if typedef:
-        assert isinstance(n.args, c_ast.ParamList)
-        assert isinstance(n.args.params, list)
-        
-        typedef_js_name: str = typedef.name
-        js_name = n.type.declname
-
-        js_type = {
-            'kind': 'FuncDecl',
-            'name': js_name,
-            'return_type': None,
-            'params_types': [],
-        }
-
-        # return type
-        t, _ = get_node(n.type, typedef=typedef, func_decl=n)
-        js_type['return_type'] = t
-
-        # params types
-        for m in n.args.params:
-            t, _ = get_node(m, func_decl=n)
-            js_type['params_types'].append(t)
-
-        if typedef_js_name:
-            USER_DEFINED_TYPEDEF_FUNC_DECL[typedef_js_name] = js_type
-
-        js_line = f'func_decl (typedef): {dumps(js_type)}'
-    # elif decl:
-    #     assert isinstance(n.args, c_ast.ParamList)
-    #     assert isinstance(n.args.params, list)
-    #  
-    #     js_type = {
-    #         'kind': 'FuncDecl',
-    #         'name': decl.name,
-    #         'return_type': None,
-    #         'params_types': [],
-    #     }
-    #
-    #     t, l = get_node(n.type, decl=decl, func_decl=n)
-    #     js_type['return_type'] = t
-    #
-    #     for m in n.args.params:
-    #         t, l = get_node(m, func_decl=n)
-    #         js_type['params_types'].append(t)
-    #
-    #     js_line = f'/* {js_type["name"]}: {js_type["return_type"]} = {dumps(js_type["params_types"])} */'
-    #     USER_DEFINED_FUNC_DECL[js_type['name']] = js_type
-    else:
-        raise TypeError(type(n))
-    '''
-
     assert isinstance(n.args, c_ast.ParamList)
     assert isinstance(n.args.params, list)
     typedef_js_name: str | None = None
@@ -543,29 +491,6 @@ def get_node(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
 
-    '''
-    if decl:
-        if isinstance(n, c_ast.TypeDecl):
-            js_type, js_line = get_type_decl(n, decl=decl, func_decl=func_decl)
-        elif isinstance(n, c_ast.PtrDecl):
-            js_type, js_line = get_ptr_decl(n, decl=decl, func_decl=func_decl)
-        else:
-            raise TypeError(n)
-    elif func_decl:
-        if isinstance(n, c_ast.Decl):
-            js_type, js_line = get_decl(n, func_decl=func_decl)
-        elif isinstance(n, c_ast.TypeDecl):
-            js_type, js_line = get_type_decl(n, func_decl=func_decl)
-        elif isinstance(n, c_ast.PtrDecl):
-            # js_type, js_line = get_ptr_decl(n, decl=decl, func_decl=func_decl)
-            js_type, js_line = get_ptr_decl(n, func_decl=func_decl)
-        elif isinstance(n, c_ast.Typename):
-            js_type, js_line = get_typename(n, func_decl=func_decl)
-        else:
-            raise TypeError(n)
-    else:
-        raise TypeError(n)
-    '''
     if isinstance(n, c_ast.Decl):
         js_type, js_line = get_decl(n, func_decl=func_decl)
     elif isinstance(n, c_ast.TypeDecl):
