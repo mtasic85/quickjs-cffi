@@ -183,9 +183,27 @@ def get_leaf_name(n) -> list[str]:
         return get_leaf_names(n.type)
 
 
-def get_typename(n, func_decl=None) -> JsTypeLine:
+def get_typename(n, decl=None, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
+    js_name: str | None = None
+
+    if decl:
+        raise TypeError(type(n))
+    elif func_decl:
+        js_name = n.name
+        t, _ = get_node(n.type, func_decl=func_decl)
+
+        js_type = {
+            'kind': 'Typename',
+            'name': js_name,
+            'type': t,
+        }
+
+        js_line = f'typename (func_decl): {dumps(js_type)}'
+    else:
+        raise TypeError(type(n))
+
     return js_type, js_line
 
 
@@ -248,7 +266,7 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
 
     if js_name:
         USER_DEFINED_TYPE_DECL[js_name] = js_type
-    
+
     return js_type, js_line
 
 
@@ -256,21 +274,26 @@ def get_ptr_decl(n, decl=None, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
 
-    if decl and func_decl:
-        t, l = get_node(n.type, decl=decl, func_decl=func_decl)
+    # if decl and func_decl:
+    #     t, l = get_node(n.type, decl=decl, func_decl=func_decl)
 
-        js_type = {
-            'kind': 'PtrFuncDecl',
-            'name': decl.name,
-            'type': t,
-        }
-    elif decl:
-        pass
+    #     js_type = {
+    #         'kind': 'PtrFuncDecl',
+    #         'name': decl.name,
+    #         'type': t,
+    #     }
+    # elif decl:
+    #     pass
+    # elif func_decl:
+    #     pass
+    # else:
+    #     raise TypeError(type(n))
+    if decl:
+        raise TypeError(type(n))
     elif func_decl:
         pass
     else:
         raise TypeError(type(n))
-    # raise TypeError(type(n))
     
     return js_type, js_line
 
@@ -353,32 +376,61 @@ def get_enum(n, decl=None, type_decl=None) -> JsTypeLine:
 def get_func_decl(n, typedef=None, decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
+    js_name: str | None = None
 
     if typedef:
-        raise TypeError(n)
-    elif decl:
         assert isinstance(n.args, c_ast.ParamList)
         assert isinstance(n.args.params, list)
         
+        typedef_js_name: str = typedef.name
+        js_name = n.type.declname
+
         js_type = {
             'kind': 'FuncDecl',
-            'name': decl.name,
+            'name': js_name,
             'return_type': None,
             'params_types': [],
         }
 
-        t, l = get_node(n.type, decl=decl, func_decl=n)
+        # return type
+        t, _ = get_node(n.type, typedef=typedef, func_decl=n)
         js_type['return_type'] = t
 
+        # params types
         for m in n.args.params:
-            t, l = get_node(m, func_decl=n)
+            t, _ = get_node(m, func_decl=n)
             js_type['params_types'].append(t)
 
-        js_line = f'/* {js_type["name"]}: {js_type["return_type"]} = {dumps(js_type["params_types"])} */'
-        USER_DEFINED_FUNC_DECL[js_type['name']] = js_type
+        if typedef_js_name:
+            USER_DEFINED_TYPEDEF_FUNC_DECL[typedef_js_name] = js_type
+
+        js_line = f'func_decl (typedef): {dumps(js_type)}'
+    # elif decl:
+    #     assert isinstance(n.args, c_ast.ParamList)
+    #     assert isinstance(n.args.params, list)
+    #  
+    #     js_type = {
+    #         'kind': 'FuncDecl',
+    #         'name': decl.name,
+    #         'return_type': None,
+    #         'params_types': [],
+    #     }
+    #
+    #     t, l = get_node(n.type, decl=decl, func_decl=n)
+    #     js_type['return_type'] = t
+    #
+    #     for m in n.args.params:
+    #         t, l = get_node(m, func_decl=n)
+    #         js_type['params_types'].append(t)
+    #
+    #     js_line = f'/* {js_type["name"]}: {js_type["return_type"]} = {dumps(js_type["params_types"])} */'
+    #     USER_DEFINED_FUNC_DECL[js_type['name']] = js_type
     else:
         raise TypeError(type(n))
     
+    if js_name:
+        USER_DEFINED_FUNC_DECL[js_name] = js_type
+
     return js_type, js_line
 
 
@@ -440,10 +492,12 @@ def get_decl(n, func_decl=None) -> JsTypeLine:
     return js_type, js_line
 
 
-def get_node(n, decl=None, func_decl=None) -> JsTypeLine:
+def get_node(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
+    # NOTE: typedef unused
     js_type: CType = None
     js_line: str = '/* unset */'
 
+    '''
     if decl:
         if isinstance(n, c_ast.TypeDecl):
             js_type, js_line = get_type_decl(n, decl=decl, func_decl=func_decl)
@@ -457,11 +511,23 @@ def get_node(n, decl=None, func_decl=None) -> JsTypeLine:
         elif isinstance(n, c_ast.TypeDecl):
             js_type, js_line = get_type_decl(n, func_decl=func_decl)
         elif isinstance(n, c_ast.PtrDecl):
-            js_type, js_line = get_ptr_decl(n, decl=decl, func_decl=func_decl)
+            # js_type, js_line = get_ptr_decl(n, decl=decl, func_decl=func_decl)
+            js_type, js_line = get_ptr_decl(n, func_decl=func_decl)
         elif isinstance(n, c_ast.Typename):
             js_type, js_line = get_typename(n, func_decl=func_decl)
         else:
             raise TypeError(n)
+    else:
+        raise TypeError(n)
+    '''
+    if isinstance(n, c_ast.Decl):
+        js_type, js_line = get_decl(n, decl=decl, func_decl=func_decl)
+    elif isinstance(n, c_ast.TypeDecl):
+        js_type, js_line = get_type_decl(n, decl=decl, func_decl=func_decl)
+    elif isinstance(n, c_ast.PtrDecl):
+        js_type, js_line = get_ptr_decl(n, decl=decl, func_decl=func_decl)
+    elif isinstance(n, c_ast.Typename):
+        js_type, js_line = get_typename(n, decl=decl, func_decl=func_decl)
     else:
         raise TypeError(n)
 
