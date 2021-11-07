@@ -136,10 +136,13 @@ class CParser:
         self.USER_DEFINED_TYPE_DECL = {}
         self.USER_DEFINED_FUNC_DECL = {}
         self.USER_DEFINED_STRUCT_DECL = {}
-        self.USER_DEFINED_ARRAY_DECL = {}
+        self.USER_DEFINED_UNION_DECL = {}
         self.USER_DEFINED_ENUM_DECL = {}
+        self.USER_DEFINED_ARRAY_DECL = {}
 
         self.USER_DEFINED_TYPEDEF_STRUCT = {}
+        self.USER_DEFINED_TYPEDEF_UNION = {}
+        self.USER_DEFINED_TYPEDEF_ENUM = {}
         self.USER_DEFINED_TYPEDEF_FUNC_DECL = {}
         self.USER_DEFINED_TYPEDEF_PTR_DECL = {}
 
@@ -147,12 +150,15 @@ class CParser:
             self.USER_DEFINED_TYPE_DECL,
             self.USER_DEFINED_FUNC_DECL,
             self.USER_DEFINED_STRUCT_DECL,
-            self.USER_DEFINED_ARRAY_DECL,
+            self.USER_DEFINED_UNION_DECL,
             self.USER_DEFINED_ENUM_DECL,
+            self.USER_DEFINED_ARRAY_DECL,
         )
 
         self.USER_DEFINED_TYPEDEF = ChainMap(
             self.USER_DEFINED_TYPEDEF_STRUCT,
+            self.USER_DEFINED_TYPEDEF_UNION,
+            self.USER_DEFINED_TYPEDEF_ENUM,
             self.USER_DEFINED_TYPEDEF_FUNC_DECL,
             self.USER_DEFINED_TYPEDEF_PTR_DECL,
         )
@@ -597,17 +603,29 @@ class CParser:
         print('USER_DEFINED_STRUCT_DECL:')
         pprint(self.USER_DEFINED_STRUCT_DECL, sort_dicts=False)
         print()
+
+        print('USER_DEFINED_UNION_DECL:')
+        pprint(self.USER_DEFINED_UNION_DECL, sort_dicts=False)
+        print()
+
+        print('USER_DEFINED_ENUM_DECL:')
+        pprint(self.USER_DEFINED_ENUM_DECL, sort_dicts=False)
+        print()
         
         print('USER_DEFINED_ARRAY_DECL:')
         pprint(self.USER_DEFINED_ARRAY_DECL, sort_dicts=False)
         print()
         
-        print('USER_DEFINED_ENUM_DECL:')
-        pprint(self.USER_DEFINED_ENUM_DECL, sort_dicts=False)
-        print()
-        
         print('USER_DEFINED_TYPEDEF_STRUCT:')
         pprint(self.USER_DEFINED_TYPEDEF_STRUCT, sort_dicts=False)
+        print()
+
+        print('USER_DEFINED_TYPEDEF_UNION:')
+        pprint(self.USER_DEFINED_TYPEDEF_UNION, sort_dicts=False)
+        print()
+
+        print('USER_DEFINED_TYPEDEF_ENUM:')
+        pprint(self.USER_DEFINED_TYPEDEF_ENUM, sort_dicts=False)
         print()
         
         print('USER_DEFINED_TYPEDEF_FUNC_DECL:')
