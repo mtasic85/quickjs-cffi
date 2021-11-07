@@ -273,6 +273,7 @@ def get_type_decl(n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
 def get_ptr_decl(n, decl=None, func_decl=None) -> JsTypeLine:
     js_type: CType = None
     js_line: str = '/* unset */'
+    js_name: str | None = None
 
     # if decl and func_decl:
     #     t, l = get_node(n.type, decl=decl, func_decl=func_decl)
@@ -291,7 +292,14 @@ def get_ptr_decl(n, decl=None, func_decl=None) -> JsTypeLine:
     if decl:
         raise TypeError(type(n))
     elif func_decl:
-        pass
+        t, _ = get_node(n.type, decl=decl, func_decl=func_decl)
+        js_name = None # NOTE: in this implementation is always None, but can be set to real name
+
+        js_type = {
+            'kind': 'PtrDecl',
+            'name': js_name,
+            'type': t,
+        }
     else:
         raise TypeError(type(n))
     
