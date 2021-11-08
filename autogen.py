@@ -243,6 +243,19 @@ class CParser:
                     self.USER_DEFINED_TYPEDEF_STRUCT[js_name] = js_type
 
                 js_line = f'type_decl (typedef) struct: {dumps(js_type)}'
+            elif isinstance(n.type, c_ast.Union):
+                t, _ = self.get_union(n.type, typedef=typedef, type_decl=n)
+                
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+
+                if js_name:
+                    self.USER_DEFINED_TYPEDEF_UNION[js_name] = js_type
+
+                js_line = f'type_decl (typedef) union: {dumps(js_type)}'
             else:
                 raise TypeError(n)
         elif decl or func_decl:
@@ -357,6 +370,37 @@ class CParser:
         return js_type, js_line
 
 
+    def get_union(self, n, typedef=None, type_decl=None) -> JsTypeLine:
+        js_type: CType = None
+        js_line: str = '/* unset */'
+        js_name: str
+        js_fields: dict
+        
+        if n.name:
+            js_name = n.name
+        elif type_decl and type_decl.declname:
+            js_name = type_decl.declname
+        elif typedef and typedef.name:
+            js_name = typedef.name
+        else:
+            raise ValueError(f'Could not get name of union node {n}')
+
+        # NOTE: does not parse struct fields
+        js_fields = {}
+
+        js_type = {
+            'kind': 'Union',
+            'name': js_name,
+            'fields': js_fields,
+        }
+
+        if js_name:
+            self.USER_DEFINED_UNION_DECL[js_name] = js_type
+
+        js_line = f'union: {dumps(js_type)}'
+        return js_type, js_line
+
+
     def get_enum(self, n, decl=None, type_decl=None) -> JsTypeLine:
         js_type: CType
         js_line: str
@@ -452,11 +496,11 @@ class CParser:
     #     return js_type, js_line
 
 
-    # def get_array_decl(n) -> JsTypeLine:
-    #     js_type: CType
-    #     js_line: str
-    #     raise TypeError(type(n.type))
-    #     return js_type, js_line
+    def get_array_decl(self, n, decl=None) -> JsTypeLine:
+        # FIXME: implement
+        js_type: CType = None
+        js_line: str = '/* unset */'
+        return js_type, js_line
 
 
     def get_typedef(self, n) -> JsTypeLine:
@@ -495,6 +539,8 @@ class CParser:
             js_type, js_line = self.get_func_decl(n.type, decl=n)
         elif isinstance(n.type, c_ast.PtrDecl):
             js_type, js_line = self.get_ptr_decl(n.type, decl=n)
+        elif isinstance(n.type, c_ast.ArrayDecl):
+            js_type, js_line = self.get_array_decl(n.type, decl=n)
         else:
             raise TypeError(type(n.type))
         
@@ -637,7 +683,10 @@ class CParser:
 
         # USER_DEFINED_FUNC_DECL
         for js_name, js_type in self.USER_DEFINED_FUNC_DECL.items():
-            line = f"export const {js_name} = new CFunction({dumps(self.shared_library)}, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});"
+            line = f"const _ffi_{js_name} = new CFunction({dumps(self.shared_library)}, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});"
+            lines.append(line)
+
+            line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
             lines.append(line)
 
         output: str = '\n'.join(lines)
