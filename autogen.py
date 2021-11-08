@@ -623,6 +623,9 @@ class CParser:
                     'name': js_name,
                     'type': output_js_type,
                 }
+            elif isinstance(js_type['type'], str) and js_type['type'] in self.USER_DEFINED_TYPEDEF_PTR_DECL:
+                js_name: str = js_type['type']
+                output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name])
             else:
                 output_js_type = 'pointer'
         elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
@@ -644,6 +647,18 @@ class CParser:
             self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name] = js_type
 
 
+    def optimize_USER_DEFINED_TYPEDEF_PTR_DECL(self):
+        USER_DEFINED_TYPEDEF_PTR_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL)
+
+        for js_name, js_type in USER_DEFINED_TYPEDEF_PTR_DECL.items():
+            # js_type = self.optimize_type(js_type)
+            # self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
+            js_type = deepcopy(js_type)
+            js_type['type']['return_type'] = self.optimize_type(js_type['type']['return_type'])
+            js_type['type']['params_types'] = [self.optimize_type(n) for n in js_type['type']['params_types']]
+            self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
+
+
     def optimize_USER_DEFINED_FUNC_DECL(self):
         USER_DEFINED_FUNC_DECL = deepcopy(self.USER_DEFINED_FUNC_DECL)
 
@@ -655,6 +670,7 @@ class CParser:
 
     def optmize_defs(self):
         self.optimize_USER_DEFINED_TYPEDEF_FUNC_DECL()
+        self.optimize_USER_DEFINED_TYPEDEF_PTR_DECL()
         self.optimize_USER_DEFINED_FUNC_DECL()
 
 
@@ -665,6 +681,12 @@ class CParser:
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
         ]
 
+
+        # # USER_DEFINED_TYPEDEF_ENUM
+        # for js_name, js_type in self.USER_DEFINED_TYPEDEF_ENUM.items():
+        #     line = f'export const {js_name} = {js_type};'
+        #     lines.append(line)
+        
         # USER_DEFINED_ENUM_DECL
         for js_name, js_type in self.USER_DEFINED_ENUM_DECL.items():
             if js_type['kind'] == 'Enum':
@@ -676,9 +698,10 @@ class CParser:
 
             lines.append(line)
 
-        # USER_DEFINED_TYPEDEF_ENUM
-        for js_name, js_type in self.USER_DEFINED_TYPEDEF_ENUM.items():
-            line = f'export const {js_name} = {js_type};'
+        # USER_DEFINED_TYPEDEF_FUNC_DECL
+        # USER_DEFINED_TYPEDEF_PTR_DECL
+        for js_name, js_type in self.USER_DEFINED_TYPEDEF_PTR_DECL.items():
+            line = f"/* {js_type} */"
             lines.append(line)
 
         # USER_DEFINED_FUNC_DECL
