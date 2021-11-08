@@ -3,6 +3,7 @@ import argparse
 import traceback
 import subprocess
 from json import dumps
+from copy import deepcopy
 from typing import Union, Any
 from pprint import pprint
 from collections import ChainMap
@@ -68,70 +69,71 @@ const _quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
 };
 '''
 
-PRIMITIVE_C_TYPES_NAMES = [
-    'void',
-    'uint8',
-    'sint8',
-    'uint16',
-    'sint16',
-    'uint32',
-    'sint32',
-    'uint64',
-    'sint64',
-    'float',
-    'double',
-    'uchar',
-    'schar',
-    'ushort',
-    'sshort',
-    'uint',
-    'sint',
-    'ulong',
-    'slong',
-    'longdouble',
-    'pointer',
-    'complex_float',
-    'complex_double',
-    'complex_longdouble',
-    'uint8_t',
-    'int8_t',
-    'uint16_t',
-    'int16_t',
-    'uint32_t',
-    'int32_t',
-    'char',
-    'short',
-    'int',
-    'long',
-    'string',
-    'uintptr_t',
-    'intptr_t',
-    'size_t',
-]
-
-PRIMITIVE_C_TYPES = {
-    **{n: n for n in PRIMITIVE_C_TYPES_NAMES},
-    '_Bool': 'int',
-    'signed char': 'schar',
-    'unsigned char': 'uchar',
-    'signed': 'sint',
-    'signed int': 'sint',
-    'unsigned': 'uint',
-    'unsigned int': 'uint',
-    'long long': 'sint64', # FIXME: platform specific
-    'signed long': 'uint32', # FIXME: platform specific
-    'unsigned long': 'uint32', # FIXME: platform specific
-    'signed long long': 'sint64', # FIXME: platform specific
-    'unsigned long long': 'uint64', # FIXME: platform specific
-    'long double': 'longdouble',
-}
-
 
 CType = Union[str, dict]
 JsTypeLine = (CType, str)
 
 
 class CParser:
+    PRIMITIVE_C_TYPES_NAMES = [
+        'void',
+        'uint8',
+        'sint8',
+        'uint16',
+        'sint16',
+        'uint32',
+        'sint32',
+        'uint64',
+        'sint64',
+        'float',
+        'double',
+        'uchar',
+        'schar',
+        'ushort',
+        'sshort',
+        'uint',
+        'sint',
+        'ulong',
+        'slong',
+        'longdouble',
+        'pointer',
+        'complex_float',
+        'complex_double',
+        'complex_longdouble',
+        'uint8_t',
+        'int8_t',
+        'uint16_t',
+        'int16_t',
+        'uint32_t',
+        'int32_t',
+        'char',
+        'short',
+        'int',
+        'long',
+        'string',
+        'uintptr_t',
+        'intptr_t',
+        'size_t',
+    ]
+
+    PRIMITIVE_C_TYPES = {
+        **{n: n for n in PRIMITIVE_C_TYPES_NAMES},
+        '_Bool': 'int',
+        'signed char': 'schar',
+        'unsigned char': 'uchar',
+        'signed': 'sint',
+        'signed int': 'sint',
+        'unsigned': 'uint',
+        'unsigned int': 'uint',
+        'long long': 'sint64', # FIXME: platform specific
+        'signed long': 'uint32', # FIXME: platform specific
+        'unsigned long': 'uint32', # FIXME: platform specific
+        'signed long long': 'sint64', # FIXME: platform specific
+        'unsigned long long': 'uint64', # FIXME: platform specific
+        'long double': 'longdouble',
+    }
+
+
     def __init__(self):
         self.USER_DEFINED_TYPE_DECL = {}
         self.USER_DEFINED_FUNC_DECL = {}
@@ -169,7 +171,7 @@ class CParser:
         )
 
         self.TYPES = ChainMap(
-            PRIMITIVE_C_TYPES,
+            self.PRIMITIVE_C_TYPES,
             self.USER_DEFINED_TYPES,
         )
 
@@ -555,16 +557,68 @@ class CParser:
             f.write(output)
 
 
+    def optimize_type(self, js_type: Union[str, dict]) -> Union[str, dict]:
+        output_js_type: str | dict
+
+        if isinstance(js_type, dict) and js_type['kind'] == 'PtrDecl':
+            if js_type['type'] == 'char':
+                output_js_type = 'string'
+            elif isinstance(js_type['type'], str) and js_type['type'] in self.USER_DEFINED_TYPEDEF_FUNC_DECL:
+                js_name: str = js_type['type']
+                output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name])
+
+                output_js_type = {
+                    'kind': 'PtrDecl',
+                    'name': js_name,
+                    'type': output_js_type,
+                }
+            else:
+                output_js_type = 'pointer'
+        elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
+            output_js_type = self.optimize_type(js_type['type'])
+        elif isinstance(js_type, str):
+            output_js_type = self.PRIMITIVE_C_TYPES.get(js_type, js_type)
+        else:
+            output_js_type = js_type 
+
+        return output_js_type
+
+
+    def optimize_USER_DEFINED_TYPEDEF_FUNC_DECL(self):
+        USER_DEFINED_TYPEDEF_FUNC_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL)
+
+        for js_name, js_type in USER_DEFINED_TYPEDEF_FUNC_DECL.items():
+            js_type['return_type'] = self.optimize_type(js_type['return_type'])
+            js_type['params_types'] = [self.optimize_type(n) for n in js_type['params_types']]
+            self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name] = js_type
+
+
+    def optimize_USER_DEFINED_FUNC_DECL(self):
+        USER_DEFINED_FUNC_DECL = deepcopy(self.USER_DEFINED_FUNC_DECL)
+
+        for js_name, js_type in USER_DEFINED_FUNC_DECL.items():
+            js_type['return_type'] = self.optimize_type(js_type['return_type'])
+            js_type['params_types'] = [self.optimize_type(n) for n in js_type['params_types']]
+            self.USER_DEFINED_FUNC_DECL[js_name] = js_type
+
+
     def optmize_defs(self):
-        pass
+        self.optimize_USER_DEFINED_TYPEDEF_FUNC_DECL()
+        self.optimize_USER_DEFINED_FUNC_DECL()
 
 
     def translate_to_js(self) -> str:
         self.optmize_defs()
-        return ''
+        
+        lines: list[str] = [
+            "import { CFunction, CCallback } from './quickjs-ffi.js';",
+        ]
+
+        output: str = '\n'.join(lines)
+        return output
 
 
-    def parse_and_convert(self, compiler: str, shared_library: str, input_path: str, output_path: str):
+    def translate(self, compiler: str, shared_library: str, input_path: str, output_path: str):
         # check existance of input_path
         assert os.path.exists(input_path)
 
@@ -591,6 +645,10 @@ class CParser:
         with open(output_path, 'w+') as f:
             f.write(output_data)
 
+        self.print()
+
+
+    def print(self):
         # pprint(TYPES, sort_dicts=False)
         print('USER_DEFINED_TYPE_DECL:')
         pprint(self.USER_DEFINED_TYPE_DECL, sort_dicts=False)
@@ -636,6 +694,8 @@ class CParser:
         pprint(self.USER_DEFINED_TYPEDEF_PTR_DECL, sort_dicts=False)
         print()
 
+        
+
 
 if __name__ == '__main__':
     # cli arg parser
@@ -644,9 +704,8 @@ if __name__ == '__main__':
     parser.add_argument('-l', dest='shared_library', default='./libcfltk.so', help='Shared library')
     parser.add_argument('-i', dest='input_path', help='input .h path')
     parser.add_argument('-o', dest='output_path', help='output .js path')
-    
-    # parse_and_convert
     args = parser.parse_args()
 
+    # translate
     c_parser = CParser()
-    c_parser.parse_and_convert(args.compiler, args.shared_library, args.input_path, args.output_path)
+    c_parser.translate(args.compiler, args.shared_library, args.input_path, args.output_path)
