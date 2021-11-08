@@ -608,6 +608,7 @@ class CParser:
             f.write(output)
 
 
+    '''
     def optimize_type(self, js_type: Union[str, dict]) -> Union[str, dict]:
         output_js_type: str | dict
 
@@ -615,17 +616,19 @@ class CParser:
             if js_type['type'] == 'char':
                 output_js_type = 'string'
             elif isinstance(js_type['type'], str) and js_type['type'] in self.USER_DEFINED_TYPEDEF_FUNC_DECL:
-                js_name: str = js_type['type']
-                output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name])
+                # js_name: str = js_type['type']
+                # output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name])
 
-                output_js_type = {
-                    'kind': 'PtrDecl',
-                    'name': js_name,
-                    'type': output_js_type,
-                }
+                # output_js_type = {
+                #     'kind': 'PtrDecl',
+                #     'name': js_name,
+                #     'type': output_js_type,
+                # }
+                output_js_type = 'pointer'
             elif isinstance(js_type['type'], str) and js_type['type'] in self.USER_DEFINED_TYPEDEF_PTR_DECL:
-                js_name: str = js_type['type']
-                output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name])
+                # js_name: str = js_type['type']
+                # output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name])
+                output_js_type = 'pointer'
             else:
                 output_js_type = 'pointer'
         elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
@@ -636,12 +639,36 @@ class CParser:
             output_js_type = js_type 
 
         return output_js_type
+    '''
+
+    def optimize_type(self, js_type: Union[str, dict]) -> Union[str, dict]:
+        output_js_type: str | dict
+
+        if isinstance(js_type, dict) and js_type['kind'] == 'PtrDecl':
+            if js_type['type'] == 'char':
+                output_js_type = 'string'
+            else:
+                output_js_type = 'pointer'
+        elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
+            output_js_type = self.optimize_type(js_type['type'])
+        elif isinstance(js_type, str):
+            if js_type in self.PRIMITIVE_C_TYPES:
+                output_js_type = self.PRIMITIVE_C_TYPES[js_type]
+            elif js_type in self.USER_DEFINED_TYPEDEF_PTR_DECL:
+                output_js_type = 'pointer'
+            else:
+                output_js_type = js_type
+        else:
+            output_js_type = js_type 
+
+        return output_js_type
 
 
     def optimize_USER_DEFINED_TYPEDEF_FUNC_DECL(self):
         USER_DEFINED_TYPEDEF_FUNC_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL)
 
         for js_name, js_type in USER_DEFINED_TYPEDEF_FUNC_DECL.items():
+            js_type = deepcopy(js_type)
             js_type['return_type'] = self.optimize_type(js_type['return_type'])
             js_type['params_types'] = [self.optimize_type(n) for n in js_type['params_types']]
             self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name] = js_type
@@ -651,8 +678,6 @@ class CParser:
         USER_DEFINED_TYPEDEF_PTR_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL)
 
         for js_name, js_type in USER_DEFINED_TYPEDEF_PTR_DECL.items():
-            # js_type = self.optimize_type(js_type)
-            # self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
             js_type = deepcopy(js_type)
             js_type['type']['return_type'] = self.optimize_type(js_type['type']['return_type'])
             js_type['type']['params_types'] = [self.optimize_type(n) for n in js_type['type']['params_types']]
@@ -663,6 +688,7 @@ class CParser:
         USER_DEFINED_FUNC_DECL = deepcopy(self.USER_DEFINED_FUNC_DECL)
 
         for js_name, js_type in USER_DEFINED_FUNC_DECL.items():
+            js_type = deepcopy(js_type)
             js_type['return_type'] = self.optimize_type(js_type['return_type'])
             js_type['params_types'] = [self.optimize_type(n) for n in js_type['params_types']]
             self.USER_DEFINED_FUNC_DECL[js_name] = js_type
@@ -706,7 +732,15 @@ class CParser:
 
         # USER_DEFINED_FUNC_DECL
         for js_name, js_type in self.USER_DEFINED_FUNC_DECL.items():
-            line = f"const _ffi_{js_name} = new CFunction({dumps(self.shared_library)}, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});"
+            line = f"""
+            let _ffi_{js_name};
+
+            try {{
+                _ffi_{js_name} = new CFunction({dumps(self.shared_library)}, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});
+            }} catch (e) {{
+                console.log(e);
+            }}
+            """
             lines.append(line)
 
             line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
