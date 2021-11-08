@@ -134,7 +134,12 @@ class CParser:
     }
 
 
-    def __init__(self):
+    def __init__(self, compiler: str, shared_library: str, input_path: str, output_path: str):
+        self.compiler = compiler
+        self.shared_library = shared_library
+        self.input_path = input_path
+        self.output_path = output_path
+
         self.USER_DEFINED_TYPE_DECL = {}
         self.USER_DEFINED_FUNC_DECL = {}
         self.USER_DEFINED_STRUCT_DECL = {}
@@ -614,35 +619,56 @@ class CParser:
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
         ]
 
+        # USER_DEFINED_ENUM_DECL
+        for js_name, js_type in self.USER_DEFINED_ENUM_DECL.items():
+            if js_type['kind'] == 'Enum':
+                line = f"export const {js_name} = {js_type['items']};"
+            elif js_type['kind'] == 'TypeDecl':
+                line = f"export const {js_name} = {js_type['type']['items']};"
+            else:
+                raise ValueError(js_type)
+
+            lines.append(line)
+
+        # USER_DEFINED_TYPEDEF_ENUM
+        for js_name, js_type in self.USER_DEFINED_TYPEDEF_ENUM.items():
+            line = f'export const {js_name} = {js_type};'
+            lines.append(line)
+
+        # USER_DEFINED_FUNC_DECL
+        for js_name, js_type in self.USER_DEFINED_FUNC_DECL.items():
+            line = f"export const {js_name} = new CFunction({dumps(self.shared_library)}, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});"
+            lines.append(line)
+
         output: str = '\n'.join(lines)
         return output
 
 
-    def translate(self, compiler: str, shared_library: str, input_path: str, output_path: str):
+    def translate(self):
         # check existance of input_path
-        assert os.path.exists(input_path)
+        assert os.path.exists(self.input_path)
 
         # create destination directory
-        self.create_output_dir(output_path)
+        self.create_output_dir(self.output_path)
 
         # preprocess input header path
-        dirpath, filename = os.path.split(output_path)
+        dirpath, filename = os.path.split(self.output_path)
         basename, ext = os.path.splitext(filename)
         processed_output_path: str = os.path.join(dirpath, f'{basename}.h')
-        self.preprocess_header_file(compiler, input_path, processed_output_path)
+        self.preprocess_header_file(self.compiler, self.input_path, processed_output_path)
 
         # parse input header path
         file_ast = parse_file(processed_output_path, use_cpp=True)
         assert isinstance(file_ast, c_ast.FileAST)
 
         # wrap C code into JS
-        self.get_file_ast(file_ast, shared_library=shared_library)
+        self.get_file_ast(file_ast, shared_library=self.shared_library)
         output_data: str = self.translate_to_js()
 
         print('-' * 20)
         print(output_data)
 
-        with open(output_path, 'w+') as f:
+        with open(self.output_path, 'w+') as f:
             f.write(output_data)
 
         self.print()
@@ -707,5 +733,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # translate
-    c_parser = CParser()
-    c_parser.translate(args.compiler, args.shared_library, args.input_path, args.output_path)
+    c_parser = CParser(args.compiler, args.shared_library, args.input_path, args.output_path)
+    c_parser.translate()
