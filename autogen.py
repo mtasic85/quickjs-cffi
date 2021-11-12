@@ -175,11 +175,6 @@ class CParser:
             self.USER_DEFINED_TYPEDEF,
         )
 
-        self.TYPES = ChainMap(
-            self.PRIMITIVE_C_TYPES,
-            self.USER_DEFINED_TYPES,
-        )
-
 
     def get_leaf_node(self, n):
         if hasattr(n, 'type'):
