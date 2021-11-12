@@ -75,7 +75,7 @@ JsTypeLine = (CType, str)
 
 
 class CParser:
-    PRIMITIVE_C_TYPES_NAMES = [
+    BUILTIN_TYPES_NAMES = [
         'void',
         'uint8',
         'sint8',
@@ -116,8 +116,8 @@ class CParser:
         'size_t',
     ]
 
-    PRIMITIVE_C_TYPES = {
-        **{n: n for n in PRIMITIVE_C_TYPES_NAMES},
+    BUILTIN_TYPES = {
+        **{n: n for n in BUILTIN_TYPES_NAMES},
         '_Bool': 'int',
         'signed char': 'schar',
         'unsigned char': 'uchar',
@@ -140,18 +140,18 @@ class CParser:
         self.input_path = input_path
         self.output_path = output_path
 
-        self.USER_DEFINED_TYPE_DECL = {}
-        self.USER_DEFINED_FUNC_DECL = {}
-        self.USER_DEFINED_STRUCT_DECL = {}
-        self.USER_DEFINED_UNION_DECL = {}
-        self.USER_DEFINED_ENUM_DECL = {}
-        self.USER_DEFINED_ARRAY_DECL = {}
+        self.TYPE_DECL = {}
+        self.FUNC_DECL = {}
+        self.STRUCT_DECL = {}
+        self.UNION_DECL = {}
+        self.ENUM_DECL = {}
+        self.ARRAY_DECL = {}
 
-        self.USER_DEFINED_TYPEDEF_STRUCT = {}
-        self.USER_DEFINED_TYPEDEF_UNION = {}
-        self.USER_DEFINED_TYPEDEF_ENUM = {}
-        self.USER_DEFINED_TYPEDEF_FUNC_DECL = {}
-        self.USER_DEFINED_TYPEDEF_PTR_DECL = {}
+        self.TYPEDEF_STRUCT = {}
+        self.TYPEDEF_UNION = {}
+        self.TYPEDEF_ENUM = {}
+        self.TYPEDEF_FUNC_DECL = {}
+        self.TYPEDEF_PTR_DECL = {}
 
 
     def get_leaf_node(self, n):
@@ -209,7 +209,7 @@ class CParser:
                 }
 
                 if js_name:
-                    self.USER_DEFINED_TYPEDEF_STRUCT[js_name] = js_type
+                    self.TYPEDEF_STRUCT[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
                 t = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
@@ -220,7 +220,7 @@ class CParser:
                 }
 
                 if js_name:
-                    self.USER_DEFINED_TYPEDEF_UNION[js_name] = js_type
+                    self.TYPEDEF_UNION[js_name] = js_type
             else:
                 raise TypeError(n)
         elif decl or func_decl:
@@ -235,7 +235,7 @@ class CParser:
                 }
 
                 if js_name:
-                    self.USER_DEFINED_ENUM_DECL[js_name] = js_type
+                    self.ENUM_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.PtrDecl):
                 t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
@@ -253,7 +253,7 @@ class CParser:
             raise TypeError(n)
 
         if js_name:
-            self.USER_DEFINED_TYPE_DECL[js_name] = js_type
+            self.TYPE_DECL[js_name] = js_type
 
         return js_type
 
@@ -273,7 +273,7 @@ class CParser:
             }
 
             if js_name:
-                self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
+                self.TYPEDEF_PTR_DECL[js_name] = js_type
         elif decl:
             t = self.get_node(n.type, decl=decl, ptr_decl=n)
             js_name = None # NOTE: in this implementation is always None, but can be set to real name
@@ -322,7 +322,7 @@ class CParser:
         }
 
         if js_name:
-            self.USER_DEFINED_STRUCT_DECL[js_name] = js_type
+            self.STRUCT_DECL[js_name] = js_type
 
         return js_type
 
@@ -351,7 +351,7 @@ class CParser:
         }
 
         if js_name:
-            self.USER_DEFINED_UNION_DECL[js_name] = js_type
+            self.UNION_DECL[js_name] = js_type
 
         return js_type
 
@@ -391,7 +391,7 @@ class CParser:
                 last_enum_field_value = enum_field_value
                 js_type['items'][enum_field_name] = enum_field_value
 
-            self.USER_DEFINED_ENUM_DECL[js_type["name"]] = js_type
+            self.ENUM_DECL[js_type["name"]] = js_type
         else:
             raise TypeError(type(n))
 
@@ -432,10 +432,10 @@ class CParser:
             js_type['params_types'].append(t)
 
         if not ptr_decl and typedef_js_name:
-            self.USER_DEFINED_TYPEDEF_FUNC_DECL[typedef_js_name] = js_type
+            self.TYPEDEF_FUNC_DECL[typedef_js_name] = js_type
 
         if not typedef and not ptr_decl and decl_js_name:
-            self.USER_DEFINED_FUNC_DECL[decl_js_name] = js_type
+            self.FUNC_DECL[decl_js_name] = js_type
 
         return js_type
 
@@ -551,9 +551,9 @@ class CParser:
         elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
             output_js_type = self.simplify_type(js_type['type'])
         elif isinstance(js_type, str):
-            if js_type in self.PRIMITIVE_C_TYPES:
-                output_js_type = self.PRIMITIVE_C_TYPES[js_type]
-            elif js_type in self.USER_DEFINED_TYPEDEF_PTR_DECL:
+            if js_type in self.BUILTIN_TYPES:
+                output_js_type = self.BUILTIN_TYPES[js_type]
+            elif js_type in self.TYPEDEF_PTR_DECL:
                 output_js_type = 'pointer'
             else:
                 output_js_type = js_type
@@ -563,40 +563,40 @@ class CParser:
         return output_js_type
 
 
-    def simplify_USER_DEFINED_TYPEDEF_FUNC_DECL(self):
-        USER_DEFINED_TYPEDEF_FUNC_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL)
+    def simplify_TYPEDEF_FUNC_DECL(self):
+        TYPEDEF_FUNC_DECL = deepcopy(self.TYPEDEF_FUNC_DECL)
 
-        for js_name, js_type in USER_DEFINED_TYPEDEF_FUNC_DECL.items():
+        for js_name, js_type in TYPEDEF_FUNC_DECL.items():
             js_type = deepcopy(js_type)
             js_type['return_type'] = self.simplify_type(js_type['return_type'])
             js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
-            self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name] = js_type
+            self.TYPEDEF_FUNC_DECL[js_name] = js_type
 
 
-    def simplify_USER_DEFINED_TYPEDEF_PTR_DECL(self):
-        USER_DEFINED_TYPEDEF_PTR_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL)
+    def simplify_TYPEDEF_PTR_DECL(self):
+        TYPEDEF_PTR_DECL = deepcopy(self.TYPEDEF_PTR_DECL)
 
-        for js_name, js_type in USER_DEFINED_TYPEDEF_PTR_DECL.items():
+        for js_name, js_type in TYPEDEF_PTR_DECL.items():
             js_type = deepcopy(js_type)
             js_type['type']['return_type'] = self.simplify_type(js_type['type']['return_type'])
             js_type['type']['params_types'] = [self.simplify_type(n) for n in js_type['type']['params_types']]
-            self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
+            self.TYPEDEF_PTR_DECL[js_name] = js_type
 
 
-    def simplify_USER_DEFINED_FUNC_DECL(self):
-        USER_DEFINED_FUNC_DECL = deepcopy(self.USER_DEFINED_FUNC_DECL)
+    def simplify_FUNC_DECL(self):
+        FUNC_DECL = deepcopy(self.FUNC_DECL)
 
-        for js_name, js_type in USER_DEFINED_FUNC_DECL.items():
+        for js_name, js_type in FUNC_DECL.items():
             js_type = deepcopy(js_type)
             js_type['return_type'] = self.simplify_type(js_type['return_type'])
             js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
-            self.USER_DEFINED_FUNC_DECL[js_name] = js_type
+            self.FUNC_DECL[js_name] = js_type
 
 
     def simplify_defs(self):
-        self.simplify_USER_DEFINED_TYPEDEF_FUNC_DECL()
-        self.simplify_USER_DEFINED_TYPEDEF_PTR_DECL()
-        self.simplify_USER_DEFINED_FUNC_DECL()
+        self.simplify_TYPEDEF_FUNC_DECL()
+        self.simplify_TYPEDEF_PTR_DECL()
+        self.simplify_FUNC_DECL()
 
 
     def translate_to_js(self) -> str:
@@ -608,13 +608,13 @@ class CParser:
         ]
 
 
-        # # USER_DEFINED_TYPEDEF_ENUM
-        # for js_name, js_type in self.USER_DEFINED_TYPEDEF_ENUM.items():
+        # # TYPEDEF_ENUM
+        # for js_name, js_type in self.TYPEDEF_ENUM.items():
         #     line = f'export const {js_name} = {js_type};'
         #     lines.append(line)
         
-        # USER_DEFINED_ENUM_DECL
-        for js_name, js_type in self.USER_DEFINED_ENUM_DECL.items():
+        # ENUM_DECL
+        for js_name, js_type in self.ENUM_DECL.items():
             if js_type['kind'] == 'Enum':
                 line = f"export const {js_name} = {js_type['items']};"
             elif js_type['kind'] == 'TypeDecl':
@@ -624,14 +624,14 @@ class CParser:
 
             lines.append(line)
 
-        # USER_DEFINED_TYPEDEF_FUNC_DECL
-        # USER_DEFINED_TYPEDEF_PTR_DECL
-        for js_name, js_type in self.USER_DEFINED_TYPEDEF_PTR_DECL.items():
+        # TYPEDEF_FUNC_DECL
+        # TYPEDEF_PTR_DECL
+        for js_name, js_type in self.TYPEDEF_PTR_DECL.items():
             line = f"/* {js_type} */"
             lines.append(line)
 
-        # USER_DEFINED_FUNC_DECL
-        for js_name, js_type in self.USER_DEFINED_FUNC_DECL.items():
+        # FUNC_DECL
+        for js_name, js_type in self.FUNC_DECL.items():
             line = f"""
 // {js_name}      
 let _ffi_{js_name};
@@ -683,48 +683,48 @@ try {{
 
     def print(self):
         # pprint(TYPES, sort_dicts=False)
-        print('USER_DEFINED_TYPE_DECL:')
-        pprint(self.USER_DEFINED_TYPE_DECL, sort_dicts=False)
+        print('TYPE_DECL:')
+        pprint(self.TYPE_DECL, sort_dicts=False)
         print()
 
-        print('USER_DEFINED_FUNC_DECL:')
-        pprint(self.USER_DEFINED_FUNC_DECL, sort_dicts=False)
+        print('FUNC_DECL:')
+        pprint(self.FUNC_DECL, sort_dicts=False)
         print()
         
-        print('USER_DEFINED_STRUCT_DECL:')
-        pprint(self.USER_DEFINED_STRUCT_DECL, sort_dicts=False)
+        print('STRUCT_DECL:')
+        pprint(self.STRUCT_DECL, sort_dicts=False)
         print()
 
-        print('USER_DEFINED_UNION_DECL:')
-        pprint(self.USER_DEFINED_UNION_DECL, sort_dicts=False)
+        print('UNION_DECL:')
+        pprint(self.UNION_DECL, sort_dicts=False)
         print()
 
-        print('USER_DEFINED_ENUM_DECL:')
-        pprint(self.USER_DEFINED_ENUM_DECL, sort_dicts=False)
+        print('ENUM_DECL:')
+        pprint(self.ENUM_DECL, sort_dicts=False)
         print()
         
-        print('USER_DEFINED_ARRAY_DECL:')
-        pprint(self.USER_DEFINED_ARRAY_DECL, sort_dicts=False)
+        print('ARRAY_DECL:')
+        pprint(self.ARRAY_DECL, sort_dicts=False)
         print()
         
-        print('USER_DEFINED_TYPEDEF_STRUCT:')
-        pprint(self.USER_DEFINED_TYPEDEF_STRUCT, sort_dicts=False)
+        print('TYPEDEF_STRUCT:')
+        pprint(self.TYPEDEF_STRUCT, sort_dicts=False)
         print()
 
-        print('USER_DEFINED_TYPEDEF_UNION:')
-        pprint(self.USER_DEFINED_TYPEDEF_UNION, sort_dicts=False)
+        print('TYPEDEF_UNION:')
+        pprint(self.TYPEDEF_UNION, sort_dicts=False)
         print()
 
-        print('USER_DEFINED_TYPEDEF_ENUM:')
-        pprint(self.USER_DEFINED_TYPEDEF_ENUM, sort_dicts=False)
+        print('TYPEDEF_ENUM:')
+        pprint(self.TYPEDEF_ENUM, sort_dicts=False)
         print()
         
-        print('USER_DEFINED_TYPEDEF_FUNC_DECL:')
-        pprint(self.USER_DEFINED_TYPEDEF_FUNC_DECL, sort_dicts=False)
+        print('TYPEDEF_FUNC_DECL:')
+        pprint(self.TYPEDEF_FUNC_DECL, sort_dicts=False)
         print()
         
-        print('USER_DEFINED_TYPEDEF_PTR_DECL:')
-        pprint(self.USER_DEFINED_TYPEDEF_PTR_DECL, sort_dicts=False)
+        print('TYPEDEF_PTR_DECL:')
+        pprint(self.TYPEDEF_PTR_DECL, sort_dicts=False)
         print()
 
         
