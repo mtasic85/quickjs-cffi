@@ -71,7 +71,6 @@ const _quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
 
 
 CType = Union[str, dict]
-JsTypeLine = (CType, str)
 
 
 class CParser:
