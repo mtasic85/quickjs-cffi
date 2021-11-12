@@ -153,28 +153,6 @@ class CParser:
         self.USER_DEFINED_TYPEDEF_FUNC_DECL = {}
         self.USER_DEFINED_TYPEDEF_PTR_DECL = {}
 
-        self.USER_DEFINED_DECL = ChainMap(
-            self.USER_DEFINED_TYPE_DECL,
-            self.USER_DEFINED_FUNC_DECL,
-            self.USER_DEFINED_STRUCT_DECL,
-            self.USER_DEFINED_UNION_DECL,
-            self.USER_DEFINED_ENUM_DECL,
-            self.USER_DEFINED_ARRAY_DECL,
-        )
-
-        self.USER_DEFINED_TYPEDEF = ChainMap(
-            self.USER_DEFINED_TYPEDEF_STRUCT,
-            self.USER_DEFINED_TYPEDEF_UNION,
-            self.USER_DEFINED_TYPEDEF_ENUM,
-            self.USER_DEFINED_TYPEDEF_FUNC_DECL,
-            self.USER_DEFINED_TYPEDEF_PTR_DECL,
-        )
-
-        self.USER_DEFINED_TYPES = ChainMap(
-            self.USER_DEFINED_DECL,
-            self.USER_DEFINED_TYPEDEF,
-        )
-
 
     def get_leaf_node(self, n):
         if hasattr(n, 'type'):
