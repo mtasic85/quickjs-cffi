@@ -567,7 +567,7 @@ class CParser:
             f.write(output)
 
 
-    def optimize_type(self, js_type: Union[str, dict]) -> CType:
+    def simplify_type(self, js_type: Union[str, dict]) -> CType:
         output_js_type: CType
 
         if isinstance(js_type, dict) and js_type['kind'] == 'PtrDecl':
@@ -576,7 +576,7 @@ class CParser:
             else:
                 output_js_type = 'pointer'
         elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
-            output_js_type = self.optimize_type(js_type['type'])
+            output_js_type = self.simplify_type(js_type['type'])
         elif isinstance(js_type, str):
             if js_type in self.PRIMITIVE_C_TYPES:
                 output_js_type = self.PRIMITIVE_C_TYPES[js_type]
@@ -590,44 +590,44 @@ class CParser:
         return output_js_type
 
 
-    def optimize_USER_DEFINED_TYPEDEF_FUNC_DECL(self):
+    def simplify_USER_DEFINED_TYPEDEF_FUNC_DECL(self):
         USER_DEFINED_TYPEDEF_FUNC_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL)
 
         for js_name, js_type in USER_DEFINED_TYPEDEF_FUNC_DECL.items():
             js_type = deepcopy(js_type)
-            js_type['return_type'] = self.optimize_type(js_type['return_type'])
-            js_type['params_types'] = [self.optimize_type(n) for n in js_type['params_types']]
+            js_type['return_type'] = self.simplify_type(js_type['return_type'])
+            js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
             self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name] = js_type
 
 
-    def optimize_USER_DEFINED_TYPEDEF_PTR_DECL(self):
+    def simplify_USER_DEFINED_TYPEDEF_PTR_DECL(self):
         USER_DEFINED_TYPEDEF_PTR_DECL = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL)
 
         for js_name, js_type in USER_DEFINED_TYPEDEF_PTR_DECL.items():
             js_type = deepcopy(js_type)
-            js_type['type']['return_type'] = self.optimize_type(js_type['type']['return_type'])
-            js_type['type']['params_types'] = [self.optimize_type(n) for n in js_type['type']['params_types']]
+            js_type['type']['return_type'] = self.simplify_type(js_type['type']['return_type'])
+            js_type['type']['params_types'] = [self.simplify_type(n) for n in js_type['type']['params_types']]
             self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
 
 
-    def optimize_USER_DEFINED_FUNC_DECL(self):
+    def simplify_USER_DEFINED_FUNC_DECL(self):
         USER_DEFINED_FUNC_DECL = deepcopy(self.USER_DEFINED_FUNC_DECL)
 
         for js_name, js_type in USER_DEFINED_FUNC_DECL.items():
             js_type = deepcopy(js_type)
-            js_type['return_type'] = self.optimize_type(js_type['return_type'])
-            js_type['params_types'] = [self.optimize_type(n) for n in js_type['params_types']]
+            js_type['return_type'] = self.simplify_type(js_type['return_type'])
+            js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
             self.USER_DEFINED_FUNC_DECL[js_name] = js_type
 
 
-    def optmize_defs(self):
-        self.optimize_USER_DEFINED_TYPEDEF_FUNC_DECL()
-        self.optimize_USER_DEFINED_TYPEDEF_PTR_DECL()
-        self.optimize_USER_DEFINED_FUNC_DECL()
+    def simplify_defs(self):
+        self.simplify_USER_DEFINED_TYPEDEF_FUNC_DECL()
+        self.simplify_USER_DEFINED_TYPEDEF_PTR_DECL()
+        self.simplify_USER_DEFINED_FUNC_DECL()
 
 
     def translate_to_js(self) -> str:
-        self.optmize_defs()
+        self.simplify_defs()
         
         lines: list[str] = [
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
