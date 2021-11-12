@@ -660,6 +660,7 @@ class CParser:
         # USER_DEFINED_FUNC_DECL
         for js_name, js_type in self.USER_DEFINED_FUNC_DECL.items():
             line = f"""
+// {js_name}      
 let _ffi_{js_name};
 
 try {{
