@@ -198,40 +198,36 @@ class CParser:
             return self.get_leaf_names(n.type)
 
 
-    def get_typename(self, n, decl=None, func_decl=None) -> JsTypeLine:
+    def get_typename(self, n, decl=None, func_decl=None) -> CType:
         js_type: CType = None
-        js_line: str = '/* unset */'
         js_name: str | None = None
 
         if decl:
             raise TypeError(type(n))
         elif func_decl:
             js_name = n.name
-            t, _ = self.get_node(n.type, func_decl=func_decl)
+            t = self.get_node(n.type, func_decl=func_decl)
 
             js_type = {
                 'kind': 'Typename',
                 'name': js_name,
                 'type': t,
             }
-
-            js_line = f'typename (func_decl): {dumps(js_type)}'
         else:
             raise TypeError(type(n))
 
-        return js_type, js_line
+        return js_type
 
 
-    def get_type_decl(self, n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
+    def get_type_decl(self, n, typedef=None, decl=None, func_decl=None) -> CType:
         js_type: CType = None
-        js_line: str = '/* unset */'
         js_name: str | None = None
 
         if typedef:
             js_name = typedef.name
 
             if isinstance(n.type, c_ast.Struct):
-                t, _ = self.get_struct(n.type, typedef=typedef, type_decl=n)
+                t = self.get_struct(n.type, typedef=typedef, type_decl=n)
                 
                 js_type = {
                     'kind': 'TypeDecl',
@@ -241,10 +237,8 @@ class CParser:
 
                 if js_name:
                     self.USER_DEFINED_TYPEDEF_STRUCT[js_name] = js_type
-
-                js_line = f'type_decl (typedef) struct: {dumps(js_type)}'
             elif isinstance(n.type, c_ast.Union):
-                t, _ = self.get_union(n.type, typedef=typedef, type_decl=n)
+                t = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
                 js_type = {
                     'kind': 'TypeDecl',
@@ -254,13 +248,11 @@ class CParser:
 
                 if js_name:
                     self.USER_DEFINED_TYPEDEF_UNION[js_name] = js_type
-
-                js_line = f'type_decl (typedef) union: {dumps(js_type)}'
             else:
                 raise TypeError(n)
         elif decl or func_decl:
             if isinstance(n.type, c_ast.Enum):
-                t, _ = self.get_enum(n.type, type_decl=n)
+                t = self.get_enum(n.type, type_decl=n)
                 js_name = n.declname
 
                 js_type = {
@@ -271,10 +263,8 @@ class CParser:
 
                 if js_name:
                     self.USER_DEFINED_ENUM_DECL[js_name] = js_type
-
-                js_line = f'type_decl (decl/func_decl) enum: {dumps(js_type)}'
             elif isinstance(n.type, c_ast.PtrDecl):
-                t, _ = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
 
                 js_type = {
@@ -282,11 +272,8 @@ class CParser:
                     'name': js_name,
                     'type': t,
                 }
-
-                js_line = f'type_decl (decl/func_decl) ptr_decl: {dumps(js_type)}'
             elif isinstance(n.type, c_ast.IdentifierType):
                 js_type = self.get_leaf_name(n.type) # str repo of type in C
-                js_line = f'type_decl identifier: {js_type}'
             else:
                 raise TypeError(n)
         else:
@@ -295,16 +282,15 @@ class CParser:
         if js_name:
             self.USER_DEFINED_TYPE_DECL[js_name] = js_type
 
-        return js_type, js_line
+        return js_type
 
 
-    def get_ptr_decl(self, n, typedef=None, decl=None, func_decl=None) -> JsTypeLine:
+    def get_ptr_decl(self, n, typedef=None, decl=None, func_decl=None) -> CType:
         js_type: CType = None
-        js_line: str = '/* unset */'
         js_name: str | None = None
 
         if typedef:
-            t, _ = self.get_node(n.type, typedef=typedef, ptr_decl=n)
+            t = self.get_node(n.type, typedef=typedef, ptr_decl=n)
             js_name = typedef.name
 
             js_type = {
@@ -316,7 +302,7 @@ class CParser:
             if js_name:
                 self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name] = js_type
         elif decl:
-            t, _ = self.get_node(n.type, decl=decl, ptr_decl=n)
+            t = self.get_node(n.type, decl=decl, ptr_decl=n)
             js_name = None # NOTE: in this implementation is always None, but can be set to real name
 
             js_type = {
@@ -325,7 +311,7 @@ class CParser:
                 'type': t,
             }
         elif func_decl:
-            t, _ = self.get_node(n.type, func_decl=func_decl, ptr_decl=n)
+            t = self.get_node(n.type, func_decl=func_decl, ptr_decl=n)
             js_name = None # NOTE: in this implementation is always None, but can be set to real name
 
             js_type = {
@@ -336,12 +322,11 @@ class CParser:
         else:
             raise TypeError(type(n))
         
-        return js_type, js_line
+        return js_type
 
 
-    def get_struct(self, n, typedef=None, type_decl=None) -> JsTypeLine:
+    def get_struct(self, n, typedef=None, type_decl=None) -> CType:
         js_type: CType = None
-        js_line: str = '/* unset */'
         js_name: str
         js_fields: dict
         
@@ -366,13 +351,11 @@ class CParser:
         if js_name:
             self.USER_DEFINED_STRUCT_DECL[js_name] = js_type
 
-        js_line = f'struct: {dumps(js_type)}'
-        return js_type, js_line
+        return js_type
 
 
-    def get_union(self, n, typedef=None, type_decl=None) -> JsTypeLine:
+    def get_union(self, n, typedef=None, type_decl=None) -> CType:
         js_type: CType = None
-        js_line: str = '/* unset */'
         js_name: str
         js_fields: dict
         
@@ -397,14 +380,12 @@ class CParser:
         if js_name:
             self.USER_DEFINED_UNION_DECL[js_name] = js_type
 
-        js_line = f'union: {dumps(js_type)}'
-        return js_type, js_line
+        return js_type
 
 
-    def get_enum(self, n, decl=None, type_decl=None) -> JsTypeLine:
+    def get_enum(self, n, decl=None, type_decl=None) -> CType:
         js_type: CType
-        js_line: str
-
+        
         if decl or type_decl:
             assert isinstance(n.values, c_ast.EnumeratorList)
             assert isinstance(n.values.enumerators, list)
@@ -438,16 +419,14 @@ class CParser:
                 js_type['items'][enum_field_name] = enum_field_value
 
             self.USER_DEFINED_ENUM_DECL[js_type["name"]] = js_type
-            js_line = f'enum: {dumps(js_type)}'
         else:
             raise TypeError(type(n))
 
-        return js_type, js_line
+        return js_type
 
 
-    def get_func_decl(self, n, typedef=None, decl=None, ptr_decl=None) -> JsTypeLine:
+    def get_func_decl(self, n, typedef=None, decl=None, ptr_decl=None) -> CType:
         js_type: CType = None
-        js_line: str = '/* unset */'
         js_name: str | None = None
 
         assert isinstance(n.args, c_ast.ParamList)
@@ -471,12 +450,12 @@ class CParser:
         }
 
         # return type
-        t, _ = self.get_node(n.type, typedef=typedef, func_decl=n, ptr_decl=ptr_decl)
+        t = self.get_node(n.type, typedef=typedef, func_decl=n, ptr_decl=ptr_decl)
         js_type['return_type'] = t
 
         # params types
         for m in n.args.params:
-            t, _ = self.get_node(m, func_decl=n)
+            t = self.get_node(m, func_decl=n)
             js_type['params_types'].append(t)
 
         if not ptr_decl and typedef_js_name:
@@ -485,35 +464,31 @@ class CParser:
         if not typedef and not ptr_decl and decl_js_name:
             self.USER_DEFINED_FUNC_DECL[decl_js_name] = js_type
 
-        js_line = f'func_decl: {dumps(js_type)}'
-        return js_type, js_line
+        return js_type
 
 
-    # def get_enum_decl(self, n) -> JsTypeLine:
+    # def get_enum_decl(self, n) -> CType:
     #     js_type: CType
-    #     js_line: str
     #     raise TypeError(type(n))
-    #     return js_type, js_line
+    #     return js_type
 
 
-    def get_array_decl(self, n, decl=None) -> JsTypeLine:
+    def get_array_decl(self, n, decl=None) -> CType:
         # FIXME: implement
         js_type: CType = None
-        js_line: str = '/* unset */'
-        return js_type, js_line
+        return js_type
 
 
-    def get_typedef(self, n) -> JsTypeLine:
+    def get_typedef(self, n) -> CType:
         js_type: CType
-        js_line: str = '/* unset */'
         js_name: str = n.name
 
         if isinstance(n.type, c_ast.TypeDecl):
-            t, _ = self.get_type_decl(n.type, typedef=n)
+            t = self.get_type_decl(n.type, typedef=n)
         elif isinstance(n.type, c_ast.FuncDecl):
-            t, _ = self.get_func_decl(n.type, typedef=n)
+            t = self.get_func_decl(n.type, typedef=n)
         elif isinstance(n.type, c_ast.PtrDecl):
-            t, _ = self.get_ptr_decl(n.type, typedef=n)
+            t = self.get_ptr_decl(n.type, typedef=n)
         else:
             raise TypeError(type(n.type))
 
@@ -523,76 +498,60 @@ class CParser:
             'type': t,
         }
 
-        js_line = f'typedef: {dumps(js_type)}'
-        return js_type, js_line
+        return js_type
 
 
-    def get_decl(self, n, func_decl=None) -> JsTypeLine:
+    def get_decl(self, n, func_decl=None) -> CType:
         js_type: CType = None
-        js_line: str = '/* unset */'
 
         if isinstance(n.type, c_ast.Enum):
-            js_type, js_line = self.get_enum(n.type, decl=n)
+            js_type = self.get_enum(n.type, decl=n)
         elif isinstance(n.type, c_ast.TypeDecl):
-            js_type, js_line = self.get_type_decl(n.type, decl=n)
+            js_type = self.get_type_decl(n.type, decl=n)
         elif isinstance(n.type, c_ast.FuncDecl):
-            js_type, js_line = self.get_func_decl(n.type, decl=n)
+            js_type = self.get_func_decl(n.type, decl=n)
         elif isinstance(n.type, c_ast.PtrDecl):
-            js_type, js_line = self.get_ptr_decl(n.type, decl=n)
+            js_type = self.get_ptr_decl(n.type, decl=n)
         elif isinstance(n.type, c_ast.ArrayDecl):
-            js_type, js_line = self.get_array_decl(n.type, decl=n)
+            js_type = self.get_array_decl(n.type, decl=n)
         else:
             raise TypeError(type(n.type))
         
-        return js_type, js_line
+        return js_type
 
 
-    def get_node(self, n, typedef=None, decl=None, ptr_decl=None, func_decl=None) -> JsTypeLine:
+    def get_node(self, n, typedef=None, decl=None, ptr_decl=None, func_decl=None) -> CType:
         # NOTE: typedef unused
         js_type: CType = None
-        js_line: str = '/* unset */'
 
         if isinstance(n, c_ast.Decl):
-            js_type, js_line = self.get_decl(n, func_decl=func_decl)
+            js_type = self.get_decl(n, func_decl=func_decl)
         elif isinstance(n, c_ast.TypeDecl):
-            js_type, js_line = self.get_type_decl(n, decl=decl, func_decl=func_decl)
+            js_type = self.get_type_decl(n, decl=decl, func_decl=func_decl)
         elif isinstance(n, c_ast.PtrDecl):
-            js_type, js_line = self.get_ptr_decl(n, decl=decl, func_decl=func_decl)
+            js_type = self.get_ptr_decl(n, decl=decl, func_decl=func_decl)
         elif isinstance(n, c_ast.FuncDecl):
-            js_type, js_line = self.get_func_decl(n, typedef=typedef, decl=decl, ptr_decl=ptr_decl)
+            js_type = self.get_func_decl(n, typedef=typedef, decl=decl, ptr_decl=ptr_decl)
         elif isinstance(n, c_ast.Typename):
-            js_type, js_line = self.get_typename(n, decl=decl, func_decl=func_decl)
+            js_type = self.get_typename(n, decl=decl, func_decl=func_decl)
         else:
             raise TypeError(n)
 
-        return js_type, js_line
+        return js_type
 
 
-    def get_file_ast(self, file_ast, shared_library: str) -> str:
-        js_lines: list[str]
+    def get_file_ast(self, file_ast, shared_library: str):
         js_type: CType = None
-        js_line: str = '/* unset */'
-
-        js_lines = [
-            "import { CFunction, CCallback } from './quickjs-ffi.js';",
-            f"const LIB = {dumps(shared_library)};",
-            _QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
-        ]
 
         for n in file_ast.ext:
             print(n)
 
             if isinstance(n, c_ast.Typedef):
-                js_type, js_line = self.get_typedef(n)
+                js_type = self.get_typedef(n)
             elif isinstance(n, c_ast.Decl):
-                js_type, js_line = self.get_decl(n)
+                js_type = self.get_decl(n)
             else:
                 raise TypeError(type(n.type))
-
-            js_lines.append(js_line)
-
-        js_lines = '\n'.join(js_lines)
-        return js_lines
 
 
     def create_output_dir(self, output_path: str):
@@ -608,41 +567,8 @@ class CParser:
             f.write(output)
 
 
-    '''
-    def optimize_type(self, js_type: Union[str, dict]) -> Union[str, dict]:
-        output_js_type: str | dict
-
-        if isinstance(js_type, dict) and js_type['kind'] == 'PtrDecl':
-            if js_type['type'] == 'char':
-                output_js_type = 'string'
-            elif isinstance(js_type['type'], str) and js_type['type'] in self.USER_DEFINED_TYPEDEF_FUNC_DECL:
-                # js_name: str = js_type['type']
-                # output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_FUNC_DECL[js_name])
-
-                # output_js_type = {
-                #     'kind': 'PtrDecl',
-                #     'name': js_name,
-                #     'type': output_js_type,
-                # }
-                output_js_type = 'pointer'
-            elif isinstance(js_type['type'], str) and js_type['type'] in self.USER_DEFINED_TYPEDEF_PTR_DECL:
-                # js_name: str = js_type['type']
-                # output_js_type = deepcopy(self.USER_DEFINED_TYPEDEF_PTR_DECL[js_name])
-                output_js_type = 'pointer'
-            else:
-                output_js_type = 'pointer'
-        elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
-            output_js_type = self.optimize_type(js_type['type'])
-        elif isinstance(js_type, str):
-            output_js_type = self.PRIMITIVE_C_TYPES.get(js_type, js_type)
-        else:
-            output_js_type = js_type 
-
-        return output_js_type
-    '''
-
-    def optimize_type(self, js_type: Union[str, dict]) -> Union[str, dict]:
-        output_js_type: str | dict
+    def optimize_type(self, js_type: Union[str, dict]) -> CType:
+        output_js_type: CType
 
         if isinstance(js_type, dict) and js_type['kind'] == 'PtrDecl':
             if js_type['type'] == 'char':
@@ -705,6 +631,7 @@ class CParser:
         
         lines: list[str] = [
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
+            f"const LIB = {dumps(self.shared_library)};",
         ]
 
 
@@ -733,14 +660,14 @@ class CParser:
         # USER_DEFINED_FUNC_DECL
         for js_name, js_type in self.USER_DEFINED_FUNC_DECL.items():
             line = f"""
-            let _ffi_{js_name};
+let _ffi_{js_name};
 
-            try {{
-                _ffi_{js_name} = new CFunction({dumps(self.shared_library)}, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});
-            }} catch (e) {{
-                console.log(e);
-            }}
-            """
+try {{
+    _ffi_{js_name} = new CFunction(LIB, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});
+}} catch (e) {{
+    console.log(e);
+}}
+"""
             lines.append(line)
 
             line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
