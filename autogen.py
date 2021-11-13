@@ -18,8 +18,12 @@ const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
         if (typeof type == 'string') {
             return type;
         } else if (typeof type == 'object') {
-            if (type.kind == 'PtrFuncDecl') {
-                return 'pointer';
+            if (type.kind == 'PtrDecl') {
+                if (type.kind.type == 'char') {
+                    return 'string';
+                } else {
+                    return 'pointer';
+                }
             } else {
                 throw new Error('Unsupported type');
             }
@@ -43,7 +47,7 @@ const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
             if (typeof type == 'string') {
                 return js_arg;
             } else if (typeof type == 'object') {
-                if (type.kind == 'PtrFuncDecl') {
+                if (type.kind == 'PtrDecl') {
                     const c_cb = new CCallback(js_arg, null, ...type.types);
                     return c_cb.cfuncptr;
                 } else {
