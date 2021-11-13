@@ -609,7 +609,7 @@ class CParser:
 
 
     def translate_to_js(self) -> str:
-        self.simplify_types_defitions()
+        # self.simplify_types_defitions()
         
         lines: list[str] = [
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
@@ -648,37 +648,10 @@ class CParser:
 
         # FUNC_DECL
         for js_name, js_type in self.FUNC_DECL.items():
-            # simplified_js_type = self.SIMPLIFIED_FUNC_DECL[js_name]
-            # simplified_return_type = simplified_js_type['return_type']
-            # simplified_params_types = simplified_js_type['params_types']
-
             return_type = js_type['return_type']
             params_types = js_type['params_types']
 
-            # func_return_type = simplified_return_type
-            # func_params_types = simplified_params_types
-
-            # cb_in_params = False
-
-            # for pt in params_types:
-            #     if not isinstance(pt, dict):
-            #         continue
-            #
-            #     if pt['kind'] == 'Typename':
-            #         pt = pt['type']
-            #
-            #     if not isinstance(pt, dict):
-            #         continue
-            #
-            #     print('!', pt)
-            #     if pt['kind'] == 'PtrDecl' and pt['type'] in self.TYPEDEF_FUNC_DECL:
-            #         cb_in_params = True
-            
-            # params_types = [
-            #     pt['type'] if isinstance(pt, dict) and pt['kind'] == 'Typename' else pt
-            #     for pt in params_types
-            # ]
-
+            # prepare params_types
             _params_types = []
 
             for pt in params_types:
@@ -704,23 +677,7 @@ class CParser:
 
             params_types = _params_types
 
-#             line = f"""
-# // {js_name}      
-# let _ffi_{js_name};
-
-# try {{
-#     _ffi_{js_name} = new CFunction(LIB, {dumps(js_name)}, null, {dumps(return_type)}, ...{params_types});
-# }} catch (e) {{
-#     console.log(e);
-# }}
-# """
-#             lines.append(line)
-
-            # if cb_in_params:
-            #     types = [return_type, *params_types]
-            #     line = f"export const {js_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {dumps(js_name)}, null, ...{types});"
-            # else:
-            #     line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
+            # export of func
             types = [return_type, *params_types]
             line = f"export const {js_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {dumps(js_name)}, null, ...{types});"
             lines.append(line)
