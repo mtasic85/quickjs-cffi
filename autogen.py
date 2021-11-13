@@ -140,9 +140,10 @@ class CParser:
     }
 
 
-    def __init__(self, frontend_compiler: str, backend_compiler: str, shared_library: str, input_path: str, output_path: str):
+    def __init__(self, frontend_compiler: str, backend_compiler: str, frontend_include_paths: str, shared_library: str, input_path: str, output_path: str):
         self.frontend_compiler = frontend_compiler
         self.backend_compiler = backend_compiler
+        self.frontend_include_paths = frontend_include_paths
         self.shared_library = shared_library
         self.input_path = input_path
         self.output_path = output_path
@@ -545,8 +546,8 @@ class CParser:
             os.makedirs(dirpath, exist_ok=True)
 
 
-    def preprocess_header_file(self, compiler: str, input_path: str, output_path: str):
-        cmd = [compiler, '-E', input_path]
+    def preprocess_header_file(self, compiler: str, include_paths: str, input_path: str, output_path: str):
+        cmd = [compiler, *include_paths, '-E', input_path]
         output: bytes = subprocess.check_output(cmd)
         
         with open(output_path, 'w+b') as f:
@@ -815,11 +816,12 @@ class CParser:
             # preprocess input header path
             dirpath, filename = os.path.split(input_path)
             basename, ext = os.path.splitext(filename)
-            processed_input_path = os.path.join(dirpath, f'_{run_id}_{basename}.h')
+            # processed_input_path = os.path.join(dirpath, f'_{run_id}_{basename}.h')
+            processed_input_path = os.path.join('/tmp', f'_{run_id}_{basename}.h')
             processed_input_paths.append(processed_input_path)
 
             # preprocess input header file
-            self.preprocess_header_file(self.frontend_compiler, input_path, processed_input_path)
+            self.preprocess_header_file(self.frontend_compiler, self.frontend_include_paths, input_path, processed_input_path)
 
             # parse input header path
             file_ast = parse_file(processed_input_path, use_cpp=True)
@@ -911,6 +913,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert .h to .js')
     parser.add_argument('-fc', dest='frontend_compiler', default='gcc', help='gcc, clang, tcc')
     parser.add_argument('-bc', dest='backend_compiler', default='gcc', help='gcc, clang, tcc')
+    parser.add_argument('-Ifc', dest='frontend_include_paths', default='-I/usr/include', help='Frontend compiler\'s include paths')
     parser.add_argument('-l', dest='shared_library', default='./libcfltk.so', help='Shared library')
     parser.add_argument('-i', dest='input_path', help='path to .h file or whole directory')
     parser.add_argument('-o', dest='output_path', help='output path to translated .js/.so file or whole directory')
@@ -919,6 +922,7 @@ if __name__ == '__main__':
     # translate
     c_parser = CParser(args.frontend_compiler,
                        args.backend_compiler,
+                       [n for n in args.frontend_include_paths.split(' ') if n],
                        args.shared_library,
                        args.input_path,
                        args.output_path)
