@@ -6,6 +6,7 @@ from json import dumps
 from copy import deepcopy
 from typing import Union, Any
 from pprint import pprint
+from uuid import uuid4
 from collections import ChainMap
 
 from pycparser import c_ast, parse_file
@@ -690,25 +691,56 @@ class CParser:
         # check existance of input_path
         assert os.path.exists(self.input_path)
 
-        # create destination directory
-        self.create_output_dir(self.output_path)
+        # prepare input_paths
+        input_paths: list[str]
+        
+        if os.path.isfile(self.input_path):
+            input_paths = [self.input_path]
+        elif os.path.isdir(self.input_path):
+            input_paths = []
 
-        # preprocess input header path
-        dirpath, filename = os.path.split(self.output_path)
-        basename, ext = os.path.splitext(filename)
-        processed_output_path: str = os.path.join(dirpath, f'{basename}.h')
-        self.preprocess_header_file(self.compiler, self.input_path, processed_output_path)
+            for root, dirs, files in os.walk(self.input_path):
+                for f in files:
+                    # skip non-header files
+                    _, ext = os.path.splitext(f)
+                    
+                    if ext != '.h':
+                        continue
 
-        # parse input header path
-        file_ast = parse_file(processed_output_path, use_cpp=True)
-        assert isinstance(file_ast, c_ast.FileAST)
+                    # append header path to file
+                    path = os.path.join(root, f)
+                    input_path.append(path)
 
-        # wrap C code into JS
-        self.get_file_ast(file_ast, shared_library=self.shared_library)
+        # process input files
+        processed_input_paths: list[str]
+        run_id = str(uuid4)
+
+        for input_path in input_paths:
+            # preprocess input header path
+            dirpath, filename = os.path.split(input_path)
+            basename, ext = os.path.splitext(filename)
+            processed_input_path = os.path.join(dirpath, f'_{run_id}_{basename}.h')
+            processed_input_paths.append(processed_input_path)
+            self.preprocess_header_file(self.compiler, input_path, processed_input_path)
+            
+            # parse input header path
+            file_ast = parse_file(processed_input_path, use_cpp=True)
+            assert isinstance(file_ast, c_ast.FileAST)
+
+            # process C ast
+            self.get_file_ast(file_ast, shared_library=self.shared_library)
+
+        # translate processed header files
         output_data: str = self.translate_to_js()
+        # print('-' * 20)
+        # print(output_data)
 
-        print('-' * 20)
-        print(output_data)
+        # cleanup
+        for processed_input_path in processed_input_paths:
+            os.remove(processed_input_path)
+        
+        # create destination directory if does not exist
+        self.create_output_dir(self.output_path)
 
         with open(self.output_path, 'w+') as f:
             f.write(output_data)
@@ -768,8 +800,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert .h to .js')
     parser.add_argument('-c', dest='compiler', default='gcc', help='gcc, clang, tcc')
     parser.add_argument('-l', dest='shared_library', default='./libcfltk.so', help='Shared library')
-    parser.add_argument('-i', dest='input_path', help='input .h path')
-    parser.add_argument('-o', dest='output_path', help='output .js path')
+    parser.add_argument('-i', dest='input_path', help='path to .h file or whole directory')
+    parser.add_argument('-o', dest='output_path', help='output path to translated .js file')
     args = parser.parse_args()
 
     # translate
