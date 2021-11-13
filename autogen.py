@@ -5,8 +5,8 @@ import subprocess
 from uuid import uuid4
 from json import dumps
 from copy import deepcopy
-from typing import Union, Any
 from pprint import pprint
+from typing import Union, Any
 from collections import ChainMap
 
 from pycparser import c_ast, parse_file
@@ -16,7 +16,7 @@ from pycparser import c_ast, parse_file
 DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -I../pycparser/utils/fake_libc_include".split(' ')
 
 
-_QUICKJS_FFI_WRAP_PTR_FUNC_DECL = '''
+QUICKJS_FFI_WRAP_PTR_FUNC_DECL = '''
 const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
     // wrap C function
     const c_types = types.map(type => {
@@ -628,7 +628,7 @@ class CParser:
             f"const LIB = {dumps(self.shared_library)};",
             "const None = null;",
             "",
-            _QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
+            QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
             "",
         ]
 
