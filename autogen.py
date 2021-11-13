@@ -528,7 +528,7 @@ class CParser:
         js_type: CType = None
 
         for n in file_ast.ext:
-            print(n)
+            # print(n)
 
             if isinstance(n, c_ast.Typedef):
                 js_type = self.get_typedef(n)
@@ -724,7 +724,7 @@ class CParser:
             'SIMPLIFIED_TYPEDEF_FUNC_DECL': self.SIMPLIFIED_TYPEDEF_FUNC_DECL.maps,
             'SIMPLIFIED_TYPEDEF_PTR_DECL': self.SIMPLIFIED_TYPEDEF_PTR_DECL.maps,
         }
-        
+
         self.TYPE_DECL = ChainMap()
         self.FUNC_DECL = ChainMap()
         self.STRUCT_DECL = ChainMap()
@@ -739,25 +739,25 @@ class CParser:
         self.SIMPLIFIED_FUNC_DECL = ChainMap()
         self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
         self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
-        
+
         return context
 
 
     def push_processing_context(self, maps: dict[str, list[dict]]):
-        self.TYPE_DECL = ChainMap({}, *maps['TYPE_DECL'])
-        self.FUNC_DECL = ChainMap({}, *maps['FUNC_DECL'])
-        self.STRUCT_DECL = ChainMap({}, *maps['STRUCT_DECL'])
-        self.UNION_DECL = ChainMap({}, *maps['UNION_DECL'])
-        self.ENUM_DECL = ChainMap({}, *maps['ENUM_DECL'])
-        self.ARRAY_DECL = ChainMap({}, *maps['ARRAY_DECL'])
-        self.TYPEDEF_STRUCT = ChainMap({}, *maps['TYPEDEF_STRUCT'])
-        self.TYPEDEF_UNION = ChainMap({}, *maps['TYPEDEF_UNION'])
-        self.TYPEDEF_ENUM = ChainMap({}, *maps['TYPEDEF_ENUM'])
-        self.TYPEDEF_FUNC_DECL = ChainMap({}, *maps['TYPEDEF_FUNC_DECL'])
-        self.TYPEDEF_PTR_DECL = ChainMap({}, *maps['TYPEDEF_PTR_DECL'])
-        self.SIMPLIFIED_FUNC_DECL = ChainMap({}, *maps['SIMPLIFIED_FUNC_DECL'])
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap({}, *maps['SIMPLIFIED_TYPEDEF_FUNC_DECL'])
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap({}, *maps['SIMPLIFIED_TYPEDEF_PTR_DECL'])
+        self.TYPE_DECL = ChainMap(dict(self.TYPE_DECL), *maps['TYPE_DECL'])
+        self.FUNC_DECL = ChainMap(dict(self.FUNC_DECL), *maps['FUNC_DECL'])
+        self.STRUCT_DECL = ChainMap(dict(self.STRUCT_DECL), *maps['STRUCT_DECL'])
+        self.UNION_DECL = ChainMap(dict(self.UNION_DECL), *maps['UNION_DECL'])
+        self.ENUM_DECL = ChainMap(dict(self.ENUM_DECL), *maps['ENUM_DECL'])
+        self.ARRAY_DECL = ChainMap(dict(self.ARRAY_DECL), *maps['ARRAY_DECL'])
+        self.TYPEDEF_STRUCT = ChainMap(dict(self.TYPEDEF_STRUCT), *maps['TYPEDEF_STRUCT'])
+        self.TYPEDEF_UNION = ChainMap(dict(self.TYPEDEF_UNION), *maps['TYPEDEF_UNION'])
+        self.TYPEDEF_ENUM = ChainMap(dict(self.TYPEDEF_ENUM), *maps['TYPEDEF_ENUM'])
+        self.TYPEDEF_FUNC_DECL = ChainMap(dict(self.TYPEDEF_FUNC_DECL), *maps['TYPEDEF_FUNC_DECL'])
+        self.TYPEDEF_PTR_DECL = ChainMap(dict(self.TYPEDEF_PTR_DECL), *maps['TYPEDEF_PTR_DECL'])
+        self.SIMPLIFIED_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_FUNC_DECL), *maps['SIMPLIFIED_FUNC_DECL'])
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_FUNC_DECL), *maps['SIMPLIFIED_TYPEDEF_FUNC_DECL'])
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_PTR_DECL), *maps['SIMPLIFIED_TYPEDEF_PTR_DECL'])
 
 
     def translate(self):
@@ -825,26 +825,26 @@ class CParser:
             file_ast = parse_file(processed_input_path, use_cpp=True)
             assert isinstance(file_ast, c_ast.FileAST)
 
-            # process C ast
-            self.get_file_ast(file_ast, shared_library=self.shared_library)
-
             # output individual files if required
             if output_path_is_dir:
                 # pop processing context
                 prev_context = self.pop_processing_context()
 
+                # process C ast
+                self.get_file_ast(file_ast, shared_library=self.shared_library)
+
                 # translate processed header files
                 output_data: str = self.translate_to_js()
-                
-                dirpath, filename = os.path.split(self.output_path)
-                basename, ext = os.path.splitext(filename)
-                output_path = os.path.join(dirpath, f'{basename}.js')
+                output_path = os.path.join(self.output_path, f'{basename}.js')
 
                 with open(output_path, 'w+') as f:
                     f.write(output_data)
 
                 # restore processing context
                 self.push_processing_context(prev_context)
+            else:
+                # process C ast
+                self.get_file_ast(file_ast, shared_library=self.shared_library)
 
         # output single file if required
         if not output_path_is_dir:
@@ -858,7 +858,7 @@ class CParser:
         for processed_input_path in processed_input_paths:
             os.remove(processed_input_path)
 
-        self.print()
+        # self.print()
 
 
     def print(self):
