@@ -12,8 +12,7 @@ from collections import ChainMap
 from pycparser import c_ast, parse_file
 
 
-# DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -D'__attribute__(x)=' -I../pycparser/utils/fake_libc_include".split(' ')
-DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -I../pycparser/utils/fake_libc_include".split(' ')
+DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -D__attribute__(x) -I../pycparser/utils/fake_libc_include".split(' ')
 
 
 QUICKJS_FFI_WRAP_PTR_FUNC_DECL = '''
