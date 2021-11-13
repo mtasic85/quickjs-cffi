@@ -152,6 +152,10 @@ class CParser:
         self.TYPEDEF_FUNC_DECL = {}
         self.TYPEDEF_PTR_DECL = {}
 
+        self.SIMPLIFIED_FUNC_DECL = {}
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = {}
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = {}
+
 
     def get_leaf_node(self, n):
         if hasattr(n, 'type'):
@@ -562,6 +566,16 @@ class CParser:
         return output_js_type
 
 
+    def simplify_FUNC_DECL(self):
+        FUNC_DECL = deepcopy(self.FUNC_DECL)
+
+        for js_name, js_type in FUNC_DECL.items():
+            js_type = deepcopy(js_type)
+            js_type['return_type'] = self.simplify_type(js_type['return_type'])
+            js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
+            self.SIMPLIFIED_FUNC_DECL[js_name] = js_type
+
+
     def simplify_TYPEDEF_FUNC_DECL(self):
         TYPEDEF_FUNC_DECL = deepcopy(self.TYPEDEF_FUNC_DECL)
 
@@ -569,7 +583,7 @@ class CParser:
             js_type = deepcopy(js_type)
             js_type['return_type'] = self.simplify_type(js_type['return_type'])
             js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
-            self.TYPEDEF_FUNC_DECL[js_name] = js_type
+            self.TYPEDEF_FUNC_DECL[js_name] = js_type # FIXME: check simplify_FUNC_DECL
 
 
     def simplify_TYPEDEF_PTR_DECL(self):
@@ -579,38 +593,28 @@ class CParser:
             js_type = deepcopy(js_type)
             js_type['type']['return_type'] = self.simplify_type(js_type['type']['return_type'])
             js_type['type']['params_types'] = [self.simplify_type(n) for n in js_type['type']['params_types']]
-            self.TYPEDEF_PTR_DECL[js_name] = js_type
+            self.TYPEDEF_PTR_DECL[js_name] = js_type # FIXME: check simplify_FUNC_DECL
 
 
-    def simplify_FUNC_DECL(self):
-        FUNC_DECL = deepcopy(self.FUNC_DECL)
-
-        for js_name, js_type in FUNC_DECL.items():
-            js_type = deepcopy(js_type)
-            js_type['return_type'] = self.simplify_type(js_type['return_type'])
-            js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
-            self.FUNC_DECL[js_name] = js_type
-
-
-    def simplify_defs(self):
+    def simplify_types_defitions(self):
         self.simplify_TYPEDEF_FUNC_DECL()
         self.simplify_TYPEDEF_PTR_DECL()
         self.simplify_FUNC_DECL()
 
 
     def translate_to_js(self) -> str:
-        self.simplify_defs()
+        self.simplify_types_defitions()
         
         lines: list[str] = [
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
             f"const LIB = {dumps(self.shared_library)};",
+            "",
         ]
 
-
-        # # TYPEDEF_ENUM
-        # for js_name, js_type in self.TYPEDEF_ENUM.items():
-        #     line = f'export const {js_name} = {js_type};'
-        #     lines.append(line)
+        # TYPEDEF_ENUM
+        for js_name, js_type in self.TYPEDEF_ENUM.items():
+            line = f"/* TYPEDEF_ENUM: {js_type} */"
+            lines.append(line)
         
         # ENUM_DECL
         for js_name, js_type in self.ENUM_DECL.items():
@@ -624,26 +628,61 @@ class CParser:
             lines.append(line)
 
         # TYPEDEF_FUNC_DECL
+        for js_name, js_type in self.TYPEDEF_FUNC_DECL.items():
+            line = f"/* TYPEDEF_FUNC_DECL: {js_type} */"
+            lines.append(line)
+
         # TYPEDEF_PTR_DECL
         for js_name, js_type in self.TYPEDEF_PTR_DECL.items():
-            line = f"/* {js_type} */"
+            line = f"/* TYPEDEF_PTR_DECL: {js_type} */"
             lines.append(line)
 
         # FUNC_DECL
         for js_name, js_type in self.FUNC_DECL.items():
+            simplified_js_type = self.SIMPLIFIED_FUNC_DECL[js_name]
+            simplified_return_type = simplified_js_type['return_type']
+            simplified_params_types = simplified_js_type['params_types']
+
+            return_type = js_type['return_type']
+            params_types = js_type['params_types']
+
+            func_return_type = simplified_return_type
+            func_params_types = simplified_params_types
+
+            cb_return_type = None
+            cb_params_types = None
+
+            for spt, pt in zip(simplified_params_types, params_types):
+                if pt['kind'] == 'Typename':
+                    pt = pt['type']
+
+                if pt['type'] == 'PtrDecl' and pt['type'] in self.TYPEDEF_FUNC_DECL:
+                    td_func_decl = self.TYPEDEF_FUNC_DECL[pt['type']]
+                    cb_return_type = simplify_type(td_func_decl['return_type'])
+                    cb_params_types = simplify_type(td_func_decl['params_types'])
+
             line = f"""
 // {js_name}      
 let _ffi_{js_name};
 
 try {{
-    _ffi_{js_name} = new CFunction(LIB, {dumps(js_name)}, null, {dumps(js_type['return_type'])}, ...{js_type['params_types']});
+    _ffi_{js_name} = new CFunction(LIB, {dumps(js_name)}, null, {dumps(return_type)}, ...{params_types});
 }} catch (e) {{
     console.log(e);
 }}
 """
             lines.append(line)
 
-            line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
+            if cb_return_type is not None and cb_params_types is not None:
+                line = f"""
+export const {js_name} = (...args) => {{
+    const c_args = [];
+    return _ffi_{js_name}.invoke(...c_args);
+}}
+                """
+            else:
+                line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
+            
             lines.append(line)
 
         output: str = '\n'.join(lines)
