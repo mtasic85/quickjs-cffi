@@ -609,6 +609,8 @@ class CParser:
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
             f"const LIB = {dumps(self.shared_library)};",
             "",
+            _QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
+            "",
         ]
 
         # TYPEDEF_ENUM
@@ -649,40 +651,45 @@ class CParser:
             func_return_type = simplified_return_type
             func_params_types = simplified_params_types
 
-            cb_return_type = None
-            cb_params_types = None
+            cb_in_params = False
 
-            for spt, pt in zip(simplified_params_types, params_types):
-                if pt['kind'] == 'Typename':
-                    pt = pt['type']
+            # for pt in params_types:
+            #     if not isinstance(pt, dict):
+            #         continue
+            #
+            #     if pt['kind'] == 'Typename':
+            #         pt = pt['type']
+            #
+            #     if not isinstance(pt, dict):
+            #         continue
+            #
+            #     print('!', pt)
+            #     if pt['kind'] == 'PtrDecl' and pt['type'] in self.TYPEDEF_FUNC_DECL:
+            #         cb_in_params = True
+            params_types = [
+                pt['type'] if isinstance(pt, dict) and pt['kind'] == 'Typename' else pt
+                for pt in params_types
+            ]
 
-                if pt['type'] == 'PtrDecl' and pt['type'] in self.TYPEDEF_FUNC_DECL:
-                    td_func_decl = self.TYPEDEF_FUNC_DECL[pt['type']]
-                    cb_return_type = simplify_type(td_func_decl['return_type'])
-                    cb_params_types = simplify_type(td_func_decl['params_types'])
+#             line = f"""
+# // {js_name}      
+# let _ffi_{js_name};
 
-            line = f"""
-// {js_name}      
-let _ffi_{js_name};
+# try {{
+#     _ffi_{js_name} = new CFunction(LIB, {dumps(js_name)}, null, {dumps(return_type)}, ...{params_types});
+# }} catch (e) {{
+#     console.log(e);
+# }}
+# """
+#             lines.append(line)
 
-try {{
-    _ffi_{js_name} = new CFunction(LIB, {dumps(js_name)}, null, {dumps(return_type)}, ...{params_types});
-}} catch (e) {{
-    console.log(e);
-}}
-"""
-            lines.append(line)
-
-            if cb_return_type is not None and cb_params_types is not None:
-                line = f"""
-export const {js_name} = (...args) => {{
-    const c_args = [];
-    return _ffi_{js_name}.invoke(...c_args);
-}}
-                """
-            else:
-                line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
-            
+            # if cb_in_params:
+            #     types = [return_type, *params_types]
+            #     line = f"export const {js_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {dumps(js_name)}, null, ...{types});"
+            # else:
+            #     line = f"export const {js_name} = (...args) => _ffi_{js_name}.invoke(...args);"
+            types = [return_type, *params_types]
+            line = f"export const {js_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {dumps(js_name)}, null, ...{types});"
             lines.append(line)
 
         output: str = '\n'.join(lines)
@@ -764,8 +771,6 @@ export const {js_name} = (...args) => {{
         print('TYPEDEF_PTR_DECL:')
         pprint(self.TYPEDEF_PTR_DECL, sort_dicts=False)
         print()
-
-        
 
 
 if __name__ == '__main__':
