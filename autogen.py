@@ -19,11 +19,13 @@ const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
             return type;
         } else if (typeof type == 'object') {
             if (type.kind == 'PtrDecl') {
-                if (type.kind.type == 'char') {
+                if (type.type == 'char') {
                     return 'string';
                 } else {
                     return 'pointer';
                 }
+            } else if (type.kind == 'PtrFuncDecl') {
+                return 'pointer';
             } else {
                 throw new Error('Unsupported type');
             }
@@ -37,7 +39,7 @@ const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
     try {
         c_func = new CFunction(lib, name, nargs, ...c_types);
     } catch (e) {
-        c_func = undefined;
+        c_func = null;
     }
     
     const js_func = (...js_args) => {
@@ -47,14 +49,14 @@ const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
             if (typeof type == 'string') {
                 return js_arg;
             } else if (typeof type == 'object') {
-                if (type.kind == 'PtrDecl') {
-                    const c_cb = new CCallback(js_arg, null, ...type.types);
+                if (type.kind == 'PtrFuncDecl') {
+                    const c_cb = new CCallback(js_arg, null, ...[type.return_type, ...type.params_types]);
                     return c_cb.cfuncptr;
                 } else {
-                    throw new Error('Unsupported type');
+                    return js_arg;
                 }
             } else {
-                throw new Error('Unsupported type');
+                return js_arg;
             }
         });
 
@@ -612,6 +614,7 @@ class CParser:
         lines: list[str] = [
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
             f"const LIB = {dumps(self.shared_library)};",
+            "const None = null; ",
             "",
             _QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
             "",
@@ -645,17 +648,17 @@ class CParser:
 
         # FUNC_DECL
         for js_name, js_type in self.FUNC_DECL.items():
-            simplified_js_type = self.SIMPLIFIED_FUNC_DECL[js_name]
-            simplified_return_type = simplified_js_type['return_type']
-            simplified_params_types = simplified_js_type['params_types']
+            # simplified_js_type = self.SIMPLIFIED_FUNC_DECL[js_name]
+            # simplified_return_type = simplified_js_type['return_type']
+            # simplified_params_types = simplified_js_type['params_types']
 
             return_type = js_type['return_type']
             params_types = js_type['params_types']
 
-            func_return_type = simplified_return_type
-            func_params_types = simplified_params_types
+            # func_return_type = simplified_return_type
+            # func_params_types = simplified_params_types
 
-            cb_in_params = False
+            # cb_in_params = False
 
             # for pt in params_types:
             #     if not isinstance(pt, dict):
@@ -670,10 +673,36 @@ class CParser:
             #     print('!', pt)
             #     if pt['kind'] == 'PtrDecl' and pt['type'] in self.TYPEDEF_FUNC_DECL:
             #         cb_in_params = True
-            params_types = [
-                pt['type'] if isinstance(pt, dict) and pt['kind'] == 'Typename' else pt
-                for pt in params_types
-            ]
+            
+            # params_types = [
+            #     pt['type'] if isinstance(pt, dict) and pt['kind'] == 'Typename' else pt
+            #     for pt in params_types
+            # ]
+
+            _params_types = []
+
+            for pt in params_types:
+                if isinstance(pt, dict) and pt['kind'] == 'Typename':
+                    pt = pt['type']
+
+                    if isinstance(pt, dict) and isinstance(pt['type'], str) and pt['type'] in self.TYPEDEF_FUNC_DECL:
+                        typedef_func_decl = self.TYPEDEF_FUNC_DECL[pt['type']]
+                        typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
+                        typedef_func_decl_params_types = self.simplify_type(typedef_func_decl['params_types'])
+
+                        new_pt = {
+                            'kind': 'PtrFuncDecl',
+                            'return_type': typedef_func_decl_return_type,
+                            'params_types': typedef_func_decl_params_types,
+                        }
+
+                        _params_types.append(new_pt)
+                    else:
+                        _params_types.append(pt)
+                else:
+                    _params_types.append(pt)
+
+            params_types = _params_types
 
 #             line = f"""
 # // {js_name}      
