@@ -609,7 +609,7 @@ class CParser:
 
 
     def translate_to_js(self) -> str:
-        # self.simplify_types_defitions()
+        self.simplify_types_defitions()
         
         lines: list[str] = [
             "import { CFunction, CCallback } from './quickjs-ffi.js';",
