@@ -830,9 +830,11 @@ class CParser:
                 # pop processing context
                 prev_context = self.pop_processing_context()
 
-                # process C ast
-                self.get_file_ast(file_ast, shared_library=self.shared_library)
+            # process C ast
+            self.get_file_ast(file_ast, shared_library=self.shared_library)
 
+            # output individual files if required
+            if output_path_is_dir:
                 # translate processed header files
                 output_data: str = self.translate_to_js()
                 output_path = os.path.join(self.output_path, f'{basename}.js')
@@ -842,9 +844,6 @@ class CParser:
 
                 # restore processing context
                 self.push_processing_context(prev_context)
-            else:
-                # process C ast
-                self.get_file_ast(file_ast, shared_library=self.shared_library)
 
         # output single file if required
         if not output_path_is_dir:
