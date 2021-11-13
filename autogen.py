@@ -2,11 +2,11 @@ import os
 import argparse
 import traceback
 import subprocess
+from uuid import uuid4
 from json import dumps
 from copy import deepcopy
 from typing import Union, Any
 from pprint import pprint
-from uuid import uuid4
 from collections import ChainMap
 
 from pycparser import c_ast, parse_file
@@ -147,22 +147,22 @@ class CParser:
         self.input_path = input_path
         self.output_path = output_path
 
-        self.TYPE_DECL = {}
-        self.FUNC_DECL = {}
-        self.STRUCT_DECL = {}
-        self.UNION_DECL = {}
-        self.ENUM_DECL = {}
-        self.ARRAY_DECL = {}
+        self.TYPE_DECL = ChainMap()
+        self.FUNC_DECL = ChainMap()
+        self.STRUCT_DECL = ChainMap()
+        self.UNION_DECL = ChainMap()
+        self.ENUM_DECL = ChainMap()
+        self.ARRAY_DECL = ChainMap()
 
-        self.TYPEDEF_STRUCT = {}
-        self.TYPEDEF_UNION = {}
-        self.TYPEDEF_ENUM = {}
-        self.TYPEDEF_FUNC_DECL = {}
-        self.TYPEDEF_PTR_DECL = {}
+        self.TYPEDEF_STRUCT = ChainMap()
+        self.TYPEDEF_UNION = ChainMap()
+        self.TYPEDEF_ENUM = ChainMap()
+        self.TYPEDEF_FUNC_DECL = ChainMap()
+        self.TYPEDEF_PTR_DECL = ChainMap()
 
-        self.SIMPLIFIED_FUNC_DECL = {}
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = {}
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = {}
+        self.SIMPLIFIED_FUNC_DECL = ChainMap()
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
 
 
     def get_leaf_node(self, n):
@@ -690,6 +690,76 @@ class CParser:
         return output
 
 
+    def push_new_processing_context(self):
+        self.TYPE_DECL = self.TYPE_DECL.new_child()
+        self.FUNC_DECL = self.FUNC_DECL.new_child()
+        self.STRUCT_DECL = self.STRUCT_DECL.new_child()
+        self.UNION_DECL = self.UNION_DECL.new_child()
+        self.ENUM_DECL = self.ENUM_DECL.new_child()
+        self.ARRAY_DECL = self.ARRAY_DECL.new_child()
+        self.TYPEDEF_STRUCT = self.TYPEDEF_STRUCT.new_child()
+        self.TYPEDEF_UNION = self.TYPEDEF_UNION.new_child()
+        self.TYPEDEF_ENUM = self.TYPEDEF_ENUM.new_child()
+        self.TYPEDEF_FUNC_DECL = self.TYPEDEF_FUNC_DECL.new_child()
+        self.TYPEDEF_PTR_DECL = self.TYPEDEF_PTR_DECL.new_child()
+        self.SIMPLIFIED_FUNC_DECL = self.SIMPLIFIED_FUNC_DECL.new_child()
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = self.SIMPLIFIED_TYPEDEF_FUNC_DECL.new_child()
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = self.SIMPLIFIED_TYPEDEF_PTR_DECL.new_child()
+
+
+    def pop_processing_context(self) -> dict[str, list[dict]]:
+        context = {
+            'TYPE_DECL': self.TYPE_DECL.maps,
+            'FUNC_DECL': self.FUNC_DECL.maps,
+            'STRUCT_DECL': self.STRUCT_DECL.maps,
+            'UNION_DECL': self.UNION_DECL.maps,
+            'ENUM_DECL': self.ENUM_DECL.maps,
+            'ARRAY_DECL': self.ARRAY_DECL.maps,
+            'TYPEDEF_STRUCT': self.TYPEDEF_STRUCT.maps,
+            'TYPEDEF_UNION': self.TYPEDEF_UNION.maps,
+            'TYPEDEF_ENUM': self.TYPEDEF_ENUM.maps,
+            'TYPEDEF_FUNC_DECL': self.TYPEDEF_FUNC_DECL.maps,
+            'TYPEDEF_PTR_DECL': self.TYPEDEF_PTR_DECL.maps,
+            'SIMPLIFIED_FUNC_DECL': self.SIMPLIFIED_FUNC_DECL.maps,
+            'SIMPLIFIED_TYPEDEF_FUNC_DECL': self.SIMPLIFIED_TYPEDEF_FUNC_DECL.maps,
+            'SIMPLIFIED_TYPEDEF_PTR_DECL': self.SIMPLIFIED_TYPEDEF_PTR_DECL.maps,
+        }
+        
+        self.TYPE_DECL = ChainMap()
+        self.FUNC_DECL = ChainMap()
+        self.STRUCT_DECL = ChainMap()
+        self.UNION_DECL = ChainMap()
+        self.ENUM_DECL = ChainMap()
+        self.ARRAY_DECL = ChainMap()
+        self.TYPEDEF_STRUCT = ChainMap()
+        self.TYPEDEF_UNION = ChainMap()
+        self.TYPEDEF_ENUM = ChainMap()
+        self.TYPEDEF_FUNC_DECL = ChainMap()
+        self.TYPEDEF_PTR_DECL = ChainMap()
+        self.SIMPLIFIED_FUNC_DECL = ChainMap()
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
+        
+        return context
+
+
+    def push_processing_context(self, maps: dict[str, list[dict]]):
+        self.TYPE_DECL = ChainMap({}, *maps['TYPE_DECL'])
+        self.FUNC_DECL = ChainMap({}, *maps['FUNC_DECL'])
+        self.STRUCT_DECL = ChainMap({}, *maps['STRUCT_DECL'])
+        self.UNION_DECL = ChainMap({}, *maps['UNION_DECL'])
+        self.ENUM_DECL = ChainMap({}, *maps['ENUM_DECL'])
+        self.ARRAY_DECL = ChainMap({}, *maps['ARRAY_DECL'])
+        self.TYPEDEF_STRUCT = ChainMap({}, *maps['TYPEDEF_STRUCT'])
+        self.TYPEDEF_UNION = ChainMap({}, *maps['TYPEDEF_UNION'])
+        self.TYPEDEF_ENUM = ChainMap({}, *maps['TYPEDEF_ENUM'])
+        self.TYPEDEF_FUNC_DECL = ChainMap({}, *maps['TYPEDEF_FUNC_DECL'])
+        self.TYPEDEF_PTR_DECL = ChainMap({}, *maps['TYPEDEF_PTR_DECL'])
+        self.SIMPLIFIED_FUNC_DECL = ChainMap({}, *maps['SIMPLIFIED_FUNC_DECL'])
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap({}, *maps['SIMPLIFIED_TYPEDEF_FUNC_DECL'])
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap({}, *maps['SIMPLIFIED_TYPEDEF_PTR_DECL'])
+
+
     def translate(self):
         # check existance of input_path
         assert os.path.exists(self.input_path)
@@ -714,11 +784,34 @@ class CParser:
                     path = os.path.join(root, f)
                     input_paths.append(path)
 
+        # output path
+        output_path_is_dir = False
+
+        if not os.path.exists(self.output_path):
+            _, ext = os.path.splitext(self.output_path)
+            
+            if not ext:
+                output_path_is_dir = True
+        else:
+            if os.path.isdir(self.output_path):
+                output_path_is_dir = True
+            else:
+                _, ext = os.path.splitext(self.output_path)
+
+                if not ext:
+                    output_path_is_dir = True
+
+        # create destination directory if does not exist
+        self.create_output_dir(self.output_path)
+
         # process input files
         run_id = str(uuid4())
         processed_input_paths: list[str] = []
 
         for input_path in input_paths:
+            # new processing context
+            self.push_new_processing_context()
+
             # preprocess input header path
             dirpath, filename = os.path.split(input_path)
             basename, ext = os.path.splitext(filename)
@@ -735,18 +828,35 @@ class CParser:
             # process C ast
             self.get_file_ast(file_ast, shared_library=self.shared_library)
 
-        # translate processed header files
-        output_data: str = self.translate_to_js()
-        
+            # output individual files if required
+            if output_path_is_dir:
+                # pop processing context
+                prev_context = self.pop_processing_context()
+
+                # translate processed header files
+                output_data: str = self.translate_to_js()
+                
+                dirpath, filename = os.path.split(self.output_path)
+                basename, ext = os.path.splitext(filename)
+                output_path = os.path.join(dirpath, f'{basename}.js')
+
+                with open(output_path, 'w+') as f:
+                    f.write(output_data)
+
+                # restore processing context
+                self.push_processing_context(prev_context)
+
+        # output single file if required
+        if not output_path_is_dir:
+            # translate processed header files
+            output_data: str = self.translate_to_js()
+            
+            with open(self.output_path, 'w+') as f:
+                f.write(output_data)
+
         # cleanup
         for processed_input_path in processed_input_paths:
             os.remove(processed_input_path)
-        
-        # create destination directory if does not exist
-        self.create_output_dir(self.output_path)
-
-        with open(self.output_path, 'w+') as f:
-            f.write(output_data)
 
         self.print()
 
