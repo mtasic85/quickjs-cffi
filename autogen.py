@@ -547,7 +547,8 @@ class CParser:
 
 
     def preprocess_header_file(self, compiler: str, include_paths: str, input_path: str, output_path: str):
-        cmd = [compiler, *include_paths, '-E', input_path]
+        # cmd = [compiler, *include_paths, '-E', input_path]
+        cmd = [compiler, '-nostdinc', *include_paths, '-E', input_path]
         output: bytes = subprocess.check_output(cmd)
         
         with open(output_path, 'w+b') as f:
