@@ -140,8 +140,9 @@ class CParser:
     }
 
 
-    def __init__(self, compiler: str, shared_library: str, input_path: str, output_path: str):
-        self.compiler = compiler
+    def __init__(self, frontend_compiler: str, backend_compiler: str, shared_library: str, input_path: str, output_path: str):
+        self.frontend_compiler = frontend_compiler
+        self.backend_compiler = backend_compiler
         self.shared_library = shared_library
         self.input_path = input_path
         self.output_path = output_path
@@ -539,7 +540,9 @@ class CParser:
 
     def create_output_dir(self, output_path: str):
         dirpath, filename = os.path.split(output_path)
-        os.makedirs(dirpath, exist_ok=True)
+        
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
 
 
     def preprocess_header_file(self, compiler: str, input_path: str, output_path: str):
@@ -613,9 +616,9 @@ class CParser:
         self.simplify_types_defitions()
         
         lines: list[str] = [
-            "import { CFunction, CCallback } from './quickjs-ffi.js';",
+            "import { CFunction, CCallback } from 'quickjs-ffi.js';",
             f"const LIB = {dumps(self.shared_library)};",
-            "const None = null; ",
+            "const None = null;",
             "",
             _QUICKJS_FFI_WRAP_PTR_FUNC_DECL,
             "",
@@ -709,11 +712,11 @@ class CParser:
 
                     # append header path to file
                     path = os.path.join(root, f)
-                    input_path.append(path)
+                    input_paths.append(path)
 
         # process input files
-        processed_input_paths: list[str]
-        run_id = str(uuid4)
+        run_id = str(uuid4())
+        processed_input_paths: list[str] = []
 
         for input_path in input_paths:
             # preprocess input header path
@@ -721,8 +724,10 @@ class CParser:
             basename, ext = os.path.splitext(filename)
             processed_input_path = os.path.join(dirpath, f'_{run_id}_{basename}.h')
             processed_input_paths.append(processed_input_path)
-            self.preprocess_header_file(self.compiler, input_path, processed_input_path)
-            
+
+            # preprocess input header file
+            self.preprocess_header_file(self.frontend_compiler, input_path, processed_input_path)
+
             # parse input header path
             file_ast = parse_file(processed_input_path, use_cpp=True)
             assert isinstance(file_ast, c_ast.FileAST)
@@ -732,9 +737,7 @@ class CParser:
 
         # translate processed header files
         output_data: str = self.translate_to_js()
-        # print('-' * 20)
-        # print(output_data)
-
+        
         # cleanup
         for processed_input_path in processed_input_paths:
             os.remove(processed_input_path)
@@ -749,7 +752,6 @@ class CParser:
 
 
     def print(self):
-        # pprint(TYPES, sort_dicts=False)
         print('TYPE_DECL:')
         pprint(self.TYPE_DECL, sort_dicts=False)
         print()
@@ -798,12 +800,18 @@ class CParser:
 if __name__ == '__main__':
     # cli arg parser
     parser = argparse.ArgumentParser(description='Convert .h to .js')
-    parser.add_argument('-c', dest='compiler', default='gcc', help='gcc, clang, tcc')
+    parser.add_argument('-fc', dest='frontend_compiler', default='gcc', help='gcc, clang, tcc')
+    parser.add_argument('-bc', dest='backend_compiler', default='gcc', help='gcc, clang, tcc')
     parser.add_argument('-l', dest='shared_library', default='./libcfltk.so', help='Shared library')
     parser.add_argument('-i', dest='input_path', help='path to .h file or whole directory')
-    parser.add_argument('-o', dest='output_path', help='output path to translated .js file')
+    parser.add_argument('-o', dest='output_path', help='output path to translated .js/.so file or whole directory')
     args = parser.parse_args()
 
     # translate
-    c_parser = CParser(args.compiler, args.shared_library, args.input_path, args.output_path)
+    c_parser = CParser(args.frontend_compiler,
+                       args.backend_compiler,
+                       args.shared_library,
+                       args.input_path,
+                       args.output_path)
+    
     c_parser.translate()
