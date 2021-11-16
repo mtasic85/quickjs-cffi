@@ -37,3 +37,8 @@ python autogen.py -fc-cflags "`pkg-config --cflags gtk+-3.0`" -i /usr/include/gt
 ```bash
 python autogen.py -fc-cflags "`pkg-config --cflags sdl2`" -i /usr/include/SDL2 -o ../quickjs-SDL2
 ```
+
+### libuv
+```bash
+python autogen.py -fc-cflags="-I../libuv/include -D__GNUC__=3 -DDIR=void" -i ../libuv/include/uv.h -o ../quickjs-libuv/uv.js
+```

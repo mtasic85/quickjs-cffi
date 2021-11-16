@@ -12,7 +12,9 @@ from collections import ChainMap
 from pycparser import c_ast, parse_file
 
 
-DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -D__attribute__(x) -I../pycparser/utils/fake_libc_include".split(' ')
+DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -D__attribute__(x) -I../pycparser/utils/fake_libc_include -I./fake_include".split(' ')
+# DEFAULT_FRONTEND_CFLAGS = r"-D__attribute__(x) -I../pycparser/utils/fake_libc_include".split(' ')
+# DEFAULT_FRONTEND_CFLAGS = r"-D__attribute__(x)".split(' ')
 
 
 QUICKJS_FFI_WRAP_PTR_FUNC_DECL = '''
@@ -143,13 +145,14 @@ class CParser:
     }
 
 
-    def __init__(self, frontend_compiler: str, backend_compiler: str, frontend_cflags: str, shared_library: str, input_path: str, output_path: str):
+    def __init__(self, frontend_compiler: str, backend_compiler: str, frontend_cflags: str, shared_library: str, input_path: str, output_path: str, keep_going: bool):
         self.frontend_compiler = frontend_compiler
         self.backend_compiler = backend_compiler
         self.frontend_cflags = frontend_cflags
         self.shared_library = shared_library
         self.input_path = input_path
         self.output_path = output_path
+        self.keep_going = keep_going
 
         self.TYPE_DECL = ChainMap()
         self.FUNC_DECL = ChainMap()
@@ -163,6 +166,7 @@ class CParser:
         self.TYPEDEF_ENUM = ChainMap()
         self.TYPEDEF_FUNC_DECL = ChainMap()
         self.TYPEDEF_PTR_DECL = ChainMap()
+        self.TYPEDEF_TYPE_DECL = ChainMap()
 
         self.SIMPLIFIED_FUNC_DECL = ChainMap()
         self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
@@ -214,7 +218,18 @@ class CParser:
         if typedef:
             js_name = typedef.name
 
-            if isinstance(n.type, c_ast.Struct):
+            if isinstance(n.type, c_ast.Enum):
+                t = self.get_enum(n.type, typedef=typedef, type_decl=n)
+                
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+
+                if js_name:
+                    self.TYPEDEF_ENUM[js_name] = js_type
+            elif isinstance(n.type, c_ast.Struct):
                 t = self.get_struct(n.type, typedef=typedef, type_decl=n)
                 
                 js_type = {
@@ -236,6 +251,8 @@ class CParser:
 
                 if js_name:
                     self.TYPEDEF_UNION[js_name] = js_type
+            elif isinstance(n.type, c_ast.IdentifierType):
+                self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
                 raise TypeError(n)
         elif decl or func_decl:
@@ -262,10 +279,137 @@ class CParser:
                 }
             elif isinstance(n.type, c_ast.IdentifierType):
                 js_type = self.get_leaf_name(n.type) # str repo of type in C
+            elif isinstance(n.type, c_ast.Struct):
+                t = self.get_struct(n.type, type_decl=n)
+                
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+
+                if js_name:
+                    self.TYPEDEF_STRUCT[js_name] = js_type
+            elif isinstance(n.type, c_ast.Union):
+                t = self.get_union(n.type, type_decl=n)
+                
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+
+                if js_name:
+                    self.TYPEDEF_UNION[js_name] = js_type
+            elif isinstance(n.type, c_ast.IdentifierType):
+                self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
                 raise TypeError(n)
         else:
+            if isinstance(n.type, c_ast.Enum):
+                t = self.get_enum(n.type, typedef=typedef, type_decl=n)
+                js_name = n.declname
+
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+
+                if js_name:
+                    self.ENUM_DECL[js_name] = js_type
+            elif isinstance(n.type, c_ast.PtrDecl):
+                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+                js_name = decl.name
+
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+            elif isinstance(n.type, c_ast.IdentifierType):
+                js_type = self.get_leaf_name(n.type) # str repo of type in C
+            elif isinstance(n.type, c_ast.Struct):
+                t = self.get_struct(n.type, typedef=typedef, type_decl=n)
+                
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+
+                if js_name:
+                    self.TYPEDEF_STRUCT[js_name] = js_type
+            elif isinstance(n.type, c_ast.Union):
+                t = self.get_union(n.type, typedef=typedef, type_decl=n)
+                
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+
+                if js_name:
+                    self.TYPEDEF_UNION[js_name] = js_type
+            elif isinstance(n.type, c_ast.IdentifierType):
+                self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
+            else:
+                raise TypeError(n)
+
+        '''
+        if typedef:
+            js_name = typedef.name
+        else:
+            js_name = n.declname
+
+        if isinstance(n.type, c_ast.Enum):
+            t = self.get_enum(n.type, type_decl=n)
+
+            js_type = {
+                'kind': 'TypeDecl',
+                'name': js_name,
+                'type': t,
+            }
+
+            if js_name:
+                self.ENUM_DECL[js_name] = js_type
+        elif isinstance(n.type, c_ast.PtrDecl):
+            t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+
+            js_type = {
+                'kind': 'TypeDecl',
+                'name': js_name,
+                'type': t,
+            }
+        elif isinstance(n.type, c_ast.IdentifierType):
+            js_type = self.get_leaf_name(n.type) # str repo of type in C
+        elif isinstance(n.type, c_ast.Struct):
+            t = self.get_struct(n.type, typedef=typedef, type_decl=n)
+            
+            js_type = {
+                'kind': 'TypeDecl',
+                'name': js_name,
+                'type': t,
+            }
+
+            if js_name:
+                self.TYPEDEF_STRUCT[js_name] = js_type
+        elif isinstance(n.type, c_ast.Union):
+            t = self.get_union(n.type, typedef=typedef, type_decl=n)
+            
+            js_type = {
+                'kind': 'TypeDecl',
+                'name': js_name,
+                'type': t,
+            }
+
+            if js_name:
+                self.TYPEDEF_UNION[js_name] = js_type
+        elif isinstance(n.type, c_ast.IdentifierType):
+            self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
+        else:
             raise TypeError(n)
+        '''
 
         if js_name:
             self.TYPE_DECL[js_name] = js_type
@@ -371,9 +515,22 @@ class CParser:
         return js_type
 
 
-    def get_enum(self, n, decl=None, type_decl=None) -> CType:
+    def get_enum(self, n, typedef=None, decl=None, type_decl=None) -> CType:
+        # FIXME: use typedef
         js_type: CType
         
+        
+        def eval_op(n):
+            if isinstance(n, c_ast.Constant):
+                return eval(n.value)
+            elif isinstance(n, c_ast.UnaryOp):
+                return eval(f'{n.op} {eval_op(n.expr)}')
+            elif isinstance(n, c_ast.BinaryOp):
+                return eval(f'{eval_op(n.left)} {n.op} {eval_op(n.right)}')
+            else:
+                raise TypeError(f'get_enum: Unsupported {type(n)}')
+
+
         if decl or type_decl:
             assert isinstance(n.values, c_ast.EnumeratorList)
             assert isinstance(n.values.enumerators, list)
@@ -388,18 +545,19 @@ class CParser:
             for m in n.values.enumerators:
                 enum_field_name: str = m.name
                 enum_field_value: Any
-
+                
                 if m.value:
-                    if isinstance(m.value, c_ast.Constant):
-                        enum_field_value = eval(m.value.value)
-                    elif m.value is None:
-                        enum_field_value = None
-                    elif isinstance(m.value, c_ast.BinaryOp):
-                        enum_field_value = eval(f'{m.value.left.value} {m.value.op} {m.value.right.value}')
-                    elif isinstance(m.value, c_ast.UnaryOp):
-                        enum_field_value = eval(f'{m.value.op} {m.value.expr.value}')
-                    else:
-                        raise TypeError(f'get_enum: Unsupported {type(m.value)}')
+                    # if isinstance(m.value, c_ast.Constant):
+                    #     enum_field_value = eval(m.value.value)
+                    # elif m.value is None:
+                    #     enum_field_value = None
+                    # elif isinstance(m.value, c_ast.UnaryOp):
+                    #     enum_field_value = eval(f'{m.value.op} {m.value.expr.value}')
+                    # elif isinstance(m.value, c_ast.BinaryOp):
+                    #     enum_field_value = eval(f'{m.value.left.value} {m.value.op} {m.value.right.value}')
+                    # else:
+                    #     raise TypeError(f'get_enum: Unsupported {type(m.value)}')
+                    enum_field_value = eval_op(m.value)
                 else:
                     enum_field_value = last_enum_field_value + 1
                 
@@ -424,7 +582,12 @@ class CParser:
 
         if typedef:
             typedef_js_name = typedef.name
-            decl_js_name = n.type.declname
+            
+            if hasattr(n.type, 'declname'):
+                decl_js_name = n.type.declname
+            else:
+                decl_js_name = n.type.type.declname
+            
             js_name = decl_js_name
         elif decl:
             decl_js_name = decl.name
@@ -502,6 +665,10 @@ class CParser:
             js_type = self.get_ptr_decl(n.type, decl=n)
         elif isinstance(n.type, c_ast.ArrayDecl):
             js_type = self.get_array_decl(n.type, decl=n)
+        elif isinstance(n.type, c_ast.Struct):
+            js_type = self.get_type_decl(n, decl=n, func_decl=func_decl)
+        elif isinstance(n.type, c_ast.Union):
+            js_type = self.get_type_decl(n, decl=n, func_decl=func_decl)
         else:
             raise TypeError(type(n.type))
         
@@ -522,6 +689,8 @@ class CParser:
             js_type = self.get_func_decl(n, typedef=typedef, decl=decl, ptr_decl=ptr_decl)
         elif isinstance(n, c_ast.Typename):
             js_type = self.get_typename(n, decl=decl, func_decl=func_decl)
+        elif isinstance(n, c_ast.EllipsisParam):
+            pass
         else:
             raise TypeError(n)
 
@@ -550,10 +719,10 @@ class CParser:
 
 
     def preprocess_header_file(self, compiler: str, cflags: list[str], input_path: str, output_path: str):
-        # cmd = [compiler, *include_paths, '-E', input_path]
-        # cmd = [compiler, '-nostdinc', *cflags, '-E', input_path]
         new_cflags = DEFAULT_FRONTEND_CFLAGS + cflags
-        cmd = [compiler, *new_cflags, '-E', input_path]
+        # new_cflags = cflags
+        cmd = [compiler, '-E', *new_cflags, input_path]
+        print('cmd:', cmd)
         output: bytes = subprocess.check_output(cmd)
         
         with open(output_path, 'w+b') as f:
@@ -608,8 +777,11 @@ class CParser:
 
         for js_name, js_type in TYPEDEF_PTR_DECL.items():
             js_type = deepcopy(js_type)
-            js_type['type']['return_type'] = self.simplify_type(js_type['type']['return_type'])
-            js_type['type']['params_types'] = [self.simplify_type(n) for n in js_type['type']['params_types']]
+
+            if isinstance(js_type['type'], dict):
+                js_type['type']['return_type'] = self.simplify_type(js_type['type']['return_type'])
+                js_type['type']['params_types'] = [self.simplify_type(n) for n in js_type['type']['params_types']]
+
             self.TYPEDEF_PTR_DECL[js_name] = js_type # FIXME: check simplify_FUNC_DECL
 
 
@@ -709,6 +881,7 @@ class CParser:
         self.TYPEDEF_ENUM = self.TYPEDEF_ENUM.new_child()
         self.TYPEDEF_FUNC_DECL = self.TYPEDEF_FUNC_DECL.new_child()
         self.TYPEDEF_PTR_DECL = self.TYPEDEF_PTR_DECL.new_child()
+        self.TYPEDEF_TYPE_DECL = self.TYPEDEF_TYPE_DECL.new_child()
         self.SIMPLIFIED_FUNC_DECL = self.SIMPLIFIED_FUNC_DECL.new_child()
         self.SIMPLIFIED_TYPEDEF_FUNC_DECL = self.SIMPLIFIED_TYPEDEF_FUNC_DECL.new_child()
         self.SIMPLIFIED_TYPEDEF_PTR_DECL = self.SIMPLIFIED_TYPEDEF_PTR_DECL.new_child()
@@ -727,6 +900,7 @@ class CParser:
             'TYPEDEF_ENUM': self.TYPEDEF_ENUM.maps,
             'TYPEDEF_FUNC_DECL': self.TYPEDEF_FUNC_DECL.maps,
             'TYPEDEF_PTR_DECL': self.TYPEDEF_PTR_DECL.maps,
+            'TYPEDEF_TYPE_DECL': self.TYPEDEF_TYPE_DECL.maps,
             'SIMPLIFIED_FUNC_DECL': self.SIMPLIFIED_FUNC_DECL.maps,
             'SIMPLIFIED_TYPEDEF_FUNC_DECL': self.SIMPLIFIED_TYPEDEF_FUNC_DECL.maps,
             'SIMPLIFIED_TYPEDEF_PTR_DECL': self.SIMPLIFIED_TYPEDEF_PTR_DECL.maps,
@@ -743,6 +917,7 @@ class CParser:
         self.TYPEDEF_ENUM = ChainMap()
         self.TYPEDEF_FUNC_DECL = ChainMap()
         self.TYPEDEF_PTR_DECL = ChainMap()
+        self.TYPEDEF_TYPE_DECL = ChainMap()
         self.SIMPLIFIED_FUNC_DECL = ChainMap()
         self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
         self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
@@ -762,6 +937,7 @@ class CParser:
         self.TYPEDEF_ENUM = ChainMap(dict(self.TYPEDEF_ENUM), *maps['TYPEDEF_ENUM'])
         self.TYPEDEF_FUNC_DECL = ChainMap(dict(self.TYPEDEF_FUNC_DECL), *maps['TYPEDEF_FUNC_DECL'])
         self.TYPEDEF_PTR_DECL = ChainMap(dict(self.TYPEDEF_PTR_DECL), *maps['TYPEDEF_PTR_DECL'])
+        self.TYPEDEF_TYPE_DECL = ChainMap(dict(self.TYPEDEF_TYPE_DECL), *maps['TYPEDEF_TYPE_DECL'])
         self.SIMPLIFIED_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_FUNC_DECL), *maps['SIMPLIFIED_FUNC_DECL'])
         self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_FUNC_DECL), *maps['SIMPLIFIED_TYPEDEF_FUNC_DECL'])
         self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_PTR_DECL), *maps['SIMPLIFIED_TYPEDEF_PTR_DECL'])
@@ -822,15 +998,31 @@ class CParser:
             # preprocess input header path
             dirpath, filename = os.path.split(input_path)
             basename, ext = os.path.splitext(filename)
-            # processed_input_path = os.path.join(dirpath, f'_{run_id}_{basename}.h')
             processed_input_path = os.path.join('/tmp', f'_{run_id}_{basename}.h')
-            processed_input_paths.append(processed_input_path)
 
             # preprocess input header file
-            self.preprocess_header_file(self.frontend_compiler, self.frontend_cflags, input_path, processed_input_path)
+            try:
+                self.preprocess_header_file(self.frontend_compiler, self.frontend_cflags, input_path, processed_input_path)
+            except Exception as e:
+                if self.keep_going:
+                    print('skipped [0]:', processed_input_path)
+                    continue
+                else:
+                    print('error parsing [0]:', processed_input_path)
+                    raise e
 
             # parse input header path
-            file_ast = parse_file(processed_input_path, use_cpp=True)
+            try:
+                file_ast = parse_file(processed_input_path, use_cpp=True)
+            except Exception as e:
+                if self.keep_going:
+                    print('skipped [1]:', processed_input_path)
+                    continue
+                else:
+                    print('error parsing [1]:', processed_input_path)
+                    raise e
+
+            processed_input_paths.append(processed_input_path)
             assert isinstance(file_ast, c_ast.FileAST)
 
             # output individual files if required
@@ -846,6 +1038,9 @@ class CParser:
                 # translate processed header files
                 output_data: str = self.translate_to_js()
                 output_path = os.path.join(self.output_path, f'{basename}.js')
+
+                # create destination directory if does not exist
+                self.create_output_dir(output_path)
 
                 with open(output_path, 'w+') as f:
                     f.write(output_data)
@@ -913,6 +1108,10 @@ class CParser:
         pprint(self.TYPEDEF_PTR_DECL, sort_dicts=False)
         print()
 
+        print('TYPEDEF_TYPE_DECL:')
+        pprint(self.TYPEDEF_TYPE_DECL, sort_dicts=False)
+        print()
+
 
 if __name__ == '__main__':
     # cli arg parser
@@ -923,6 +1122,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', dest='shared_library', default='./libcfltk.so', help='Shared library')
     parser.add_argument('-i', dest='input_path', help='path to .h file or whole directory')
     parser.add_argument('-o', dest='output_path', help='output path to translated .js/.so file or whole directory')
+    parser.add_argument('-k', dest='keep_going', action='store_true', help='keep translating even on errors')
     args = parser.parse_args()
 
     # translate
@@ -931,6 +1131,7 @@ if __name__ == '__main__':
                        [n for n in args.frontend_cflags.split(' ') if n],
                        args.shared_library,
                        args.input_path,
-                       args.output_path)
+                       args.output_path,
+                       args.keep_going)
     
     c_parser.translate()
