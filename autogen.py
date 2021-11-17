@@ -223,185 +223,189 @@ class CParser:
                 js_type = self.get_leaf_name(n.type)
                 self.TYPEDEF_TYPE_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.Enum):
-                t = self.get_enum(n.type, typedef=typedef, type_decl=n)
+                js_type = self.get_enum(n.type, typedef=typedef, type_decl=n)
                 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
-                    print('ENUM:', js_type)
+                
+                js_type['name'] = js_name
 
-                    for item_name, item_value in js_type['type']['items'].items():
-                        print('CONST:', item_name, item_value)
-                        self.CONSTS[item_name] = item_value
+                for item_name, item_value in js_type['items'].items():
+                    self.CONSTS[item_name] = item_value
                 
                 if js_name not in self.ENUM_DECL:
                     self.TYPEDEF_ENUM[js_name] = js_type
             elif isinstance(n.type, c_ast.Struct):
-                t = self.get_struct(n.type, typedef=typedef, type_decl=n)
+                js_type = self.get_struct(n.type, typedef=typedef, type_decl=n)
                 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_struct'
                 
+                js_type['name'] = js_name
+
                 if js_name not in self.STRUCT_DECL:
                     self.TYPEDEF_STRUCT[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
-                t = self.get_union(n.type, typedef=typedef, type_decl=n)
+                js_type = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_union'
+
+                js_type['name'] = js_name
                 
                 if js_name not in self.UNION_DECL:
                     self.TYPEDEF_UNION[js_name] = js_type
             else:
                 raise TypeError(n)
         elif decl or func_decl:
-            # if isinstance(n.type, c_ast.IdentifierType):
-            #     js_type = self.get_leaf_name(n.type) # str repo of type in C
-            # elif isinstance(n.type, c_ast.IdentifierType):
-            #     self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             if isinstance(n.type, c_ast.IdentifierType):
                 js_name = n.declname
                 js_type = self.get_leaf_name(n.type)
                 self.TYPE_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.PtrDecl):
-                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+                js_type = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
             elif isinstance(n.type, c_ast.Enum):
-                t = self.get_enum(n.type, type_decl=n)
+                js_type = self.get_enum(n.type, type_decl=n)
                 js_name = n.declname
 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
-                    print('ENUM:', js_type)
 
-                    for item_name, item_value in js_type['type']['items'].items():
-                        print('CONST:', item_name, item_value)
-                        self.CONSTS[item_name] = item_value
+                js_type['name'] = js_name
+                    
+                for item_name, item_value in js_type['type']['items'].items():
+                    self.CONSTS[item_name] = item_value
                 
                 if js_name not in self.TYPEDEF_ENUM:
                     self.ENUM_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.Struct):
-                t = self.get_struct(n.type, type_decl=n)
+                js_type = self.get_struct(n.type, type_decl=n)
                 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_struct'
+
+                js_type['name'] = js_name
                 
                 if js_name not in self.TYPEDEF_STRUCT:
                     self.STRUCT_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
-                t = self.get_union(n.type, type_decl=n)
+                js_type = self.get_union(n.type, type_decl=n)
                 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_union'
+
+                js_type['name'] = js_name
                 
                 if js_name not in self.TYPEDEF_UNION:
                     self.UNION_DECL[js_name] = js_type
             else:
                 raise TypeError(n)
         else:
-            # if isinstance(n.type, c_ast.IdentifierType):
-            #     js_type = self.get_leaf_name(n.type) # str repo of type in C
-            # elif isinstance(n.type, c_ast.IdentifierType):
-            #     self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             if isinstance(n.type, c_ast.IdentifierType):
                 js_name = n.declname
                 js_type = self.get_leaf_name(n.type)
                 self.TYPE_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.PtrDecl):
-                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+                js_type = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
             elif isinstance(n.type, c_ast.Enum):
-                t = self.get_enum(n.type, typedef=typedef, type_decl=n)
+                js_type = self.get_enum(n.type, typedef=typedef, type_decl=n)
                 js_name = n.declname
 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
-                    print('ENUM:', js_type)
 
-                    for item_name, item_value in js_type['type']['items'].items():
-                        print('CONST:', item_name, item_value)
-                        self.CONSTS[item_name] = item_value
+                js_type['name'] = js_name
+                    
+                for item_name, item_value in js_type['type']['items'].items():
+                    self.CONSTS[item_name] = item_value
                 
                 if js_name not in self.TYPEDEF_ENUM:
                     self.ENUM_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.Struct):
-                t = self.get_struct(n.type, typedef=typedef, type_decl=n)
+                js_type = self.get_struct(n.type, typedef=typedef, type_decl=n)
                 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_struct'
+
+                js_type['name'] = js_name
                 
                 if js_name not in self.TYPEDEF_STRUCT:
                     self.STRUCT_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
-                t = self.get_union(n.type, typedef=typedef, type_decl=n)
+                js_type = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
+                # js_type = {
+                #     'kind': 'TypeDecl',
+                #     'name': js_name,
+                #     'type': t,
+                # }
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_union'
+
+                js_type['name'] = js_name
                 
                 if js_name not in self.TYPEDEF_UNION:
                     self.UNION_DECL[js_name] = js_type
@@ -610,12 +614,6 @@ class CParser:
         return js_type
 
 
-    # def get_enum_decl(self, n) -> CType:
-    #     js_type: CType
-    #     raise TypeError(type(n))
-    #     return js_type
-
-
     def get_array_decl(self, n, decl=None) -> CType:
         # FIXME: implement
         js_type: CType = None
@@ -794,9 +792,20 @@ class CParser:
         ]
 
         # CONSTS
+        '''
         for js_name, value in self.CONSTS.items():
             line = f'export const {js_name} = {value};'
             lines.append(line)
+        '''
+        line = 'export const CONSTS = {'
+        lines.append(line)
+
+        for js_name, value in self.CONSTS.items():
+            line = f'    {js_name}: {value},'
+            lines.append(line)
+
+        line = '};'
+        lines.append(line)
 
         # TYPEDEF_ENUM
         for js_name, js_type in self.TYPEDEF_ENUM.items():
@@ -864,6 +873,26 @@ class CParser:
             # export of func
             types = [return_type, *params_types]
             line = f"export const {js_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {dumps(js_name)}, null, ...{types});"
+            lines.append(line)
+
+        # STRUCT_DECL
+        for js_name, js_type in self.STRUCT_DECL.items():
+            line = f"/* STRUCT_DECL: {js_type} */"
+            lines.append(line)
+
+        # UNION_DECL
+        for js_name, js_type in self.UNION_DECL.items():
+            line = f"/* UNION_DECL: {js_type} */"
+            lines.append(line)
+
+        # TYPEDEF_STRUCT
+        for js_name, js_type in self.TYPEDEF_STRUCT.items():
+            line = f"/* TYPEDEF_STRUCT: {js_type} */"
+            lines.append(line)
+
+        # TYPEDEF_UNION
+        for js_name, js_type in self.TYPEDEF_UNION.items():
+            line = f"/* TYPEDEF_UNION: {js_type} */"
             lines.append(line)
 
         output: str = '\n'.join(lines)
