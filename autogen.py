@@ -6,6 +6,7 @@ from uuid import uuid4
 from json import dumps
 from copy import deepcopy
 from pprint import pprint
+from random import randint
 from typing import Union, Any
 from collections import ChainMap
 
@@ -227,8 +228,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.TYPEDEF_ENUM[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_enum'
+                
+                self.TYPEDEF_ENUM[js_name] = js_type
             elif isinstance(n.type, c_ast.Struct):
                 t = self.get_struct(n.type, typedef=typedef, type_decl=n)
                 
@@ -238,8 +241,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.TYPEDEF_STRUCT[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_struct'
+                
+                self.TYPEDEF_STRUCT[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
                 t = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
@@ -249,8 +254,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.TYPEDEF_UNION[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_union'
+                
+                self.TYPEDEF_UNION[js_name] = js_type
             elif isinstance(n.type, c_ast.IdentifierType):
                 self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
@@ -266,8 +273,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.ENUM_DECL[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_enum'
+                
+                self.ENUM_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.PtrDecl):
                 t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
@@ -288,8 +297,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.TYPEDEF_STRUCT[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_struct'
+                
+                self.TYPEDEF_STRUCT[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
                 t = self.get_union(n.type, type_decl=n)
                 
@@ -299,8 +310,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.TYPEDEF_UNION[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_union'
+                
+                self.TYPEDEF_UNION[js_name] = js_type
             elif isinstance(n.type, c_ast.IdentifierType):
                 self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
@@ -316,8 +329,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.ENUM_DECL[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_enum'
+                
+                self.ENUM_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.PtrDecl):
                 t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
@@ -338,8 +353,10 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.TYPEDEF_STRUCT[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_struct'
+                
+                self.TYPEDEF_STRUCT[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
                 t = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
@@ -349,71 +366,19 @@ class CParser:
                     'type': t,
                 }
 
-                if js_name:
-                    self.TYPEDEF_UNION[js_name] = js_type
+                if not js_name:
+                    js_name = f'_{randint(0, 2 ** 64)}_union'
+                
+                self.TYPEDEF_UNION[js_name] = js_type
             elif isinstance(n.type, c_ast.IdentifierType):
                 self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
                 raise TypeError(n)
 
-        '''
-        if typedef:
-            js_name = typedef.name
-        else:
-            js_name = n.declname
-
-        if isinstance(n.type, c_ast.Enum):
-            t = self.get_enum(n.type, type_decl=n)
-
-            js_type = {
-                'kind': 'TypeDecl',
-                'name': js_name,
-                'type': t,
-            }
-
-            if js_name:
-                self.ENUM_DECL[js_name] = js_type
-        elif isinstance(n.type, c_ast.PtrDecl):
-            t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
-
-            js_type = {
-                'kind': 'TypeDecl',
-                'name': js_name,
-                'type': t,
-            }
-        elif isinstance(n.type, c_ast.IdentifierType):
-            js_type = self.get_leaf_name(n.type) # str repo of type in C
-        elif isinstance(n.type, c_ast.Struct):
-            t = self.get_struct(n.type, typedef=typedef, type_decl=n)
-            
-            js_type = {
-                'kind': 'TypeDecl',
-                'name': js_name,
-                'type': t,
-            }
-
-            if js_name:
-                self.TYPEDEF_STRUCT[js_name] = js_type
-        elif isinstance(n.type, c_ast.Union):
-            t = self.get_union(n.type, typedef=typedef, type_decl=n)
-            
-            js_type = {
-                'kind': 'TypeDecl',
-                'name': js_name,
-                'type': t,
-            }
-
-            if js_name:
-                self.TYPEDEF_UNION[js_name] = js_type
-        elif isinstance(n.type, c_ast.IdentifierType):
-            self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
-        else:
-            raise TypeError(n)
-        '''
-
-        if js_name:
-            self.TYPE_DECL[js_name] = js_type
-
+        if not js_name:
+            js_name = f'_{randint(0, 2 ** 64)}_type_decl'
+        
+        self.TYPE_DECL[js_name] = js_type
         return js_type
 
 
@@ -431,8 +396,10 @@ class CParser:
                 'type': t,
             }
 
-            if js_name:
-                self.TYPEDEF_PTR_DECL[js_name] = js_type
+            if not js_name:
+                js_name = f'_{randint(0, 2 ** 64)}_ptr_decl'
+            
+            self.TYPEDEF_PTR_DECL[js_name] = js_type
         elif decl:
             t = self.get_node(n.type, decl=decl, ptr_decl=n)
             js_name = None # NOTE: in this implementation is always None, but can be set to real name
@@ -480,9 +447,10 @@ class CParser:
             'fields': js_fields,
         }
 
-        if js_name:
-            self.STRUCT_DECL[js_name] = js_type
-
+        if not js_name:
+            js_name = f'_{randint(0, 2 ** 64)}_struct'
+        
+        self.STRUCT_DECL[js_name] = js_type
         return js_type
 
 
@@ -509,9 +477,10 @@ class CParser:
             'fields': js_fields,
         }
 
-        if js_name:
-            self.UNION_DECL[js_name] = js_type
-
+        if not js_name:
+            js_name = f'_{randint(0, 2 ** 64)}_union'
+        
+        self.UNION_DECL[js_name] = js_type
         return js_type
 
 
@@ -564,7 +533,12 @@ class CParser:
                 last_enum_field_value = enum_field_value
                 js_type['items'][enum_field_name] = enum_field_value
 
-            self.ENUM_DECL[js_type["name"]] = js_type
+            js_name = js_type['name']
+
+            if not js_name:
+                js_name = f'_{randint(0, 2 ** 64)}_enum'
+
+            self.ENUM_DECL[js_name] = js_type
         else:
             raise TypeError(type(n))
 
@@ -720,9 +694,7 @@ class CParser:
 
     def preprocess_header_file(self, compiler: str, cflags: list[str], input_path: str, output_path: str):
         new_cflags = DEFAULT_FRONTEND_CFLAGS + cflags
-        # new_cflags = cflags
         cmd = [compiler, '-E', *new_cflags, input_path]
-        print('cmd:', cmd)
         output: bytes = subprocess.check_output(cmd)
         
         with open(output_path, 'w+b') as f:
@@ -805,7 +777,12 @@ class CParser:
 
         # TYPEDEF_ENUM
         for js_name, js_type in self.TYPEDEF_ENUM.items():
-            line = f"/* TYPEDEF_ENUM: {js_type} */"
+            if js_type['kind'] == 'TypeDecl':
+                line = f"export const {js_name} = {js_type['type']['items']};"
+            else:
+                raise ValueError(js_type)
+
+            line += f"/* TYPEDEF_ENUM: {js_type} */"
             lines.append(line)
         
         # ENUM_DECL
@@ -817,6 +794,7 @@ class CParser:
             else:
                 raise ValueError(js_type)
 
+            line += f"/* ENUM_DECL: {js_type} */"
             lines.append(line)
 
         # TYPEDEF_FUNC_DECL
