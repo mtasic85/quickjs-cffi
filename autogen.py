@@ -154,6 +154,7 @@ class CParser:
         self.verbose = verbose
 
         self.CONSTS = ChainMap()
+        self.TYPE_DECL = ChainMap()
         self.FUNC_DECL = ChainMap()
         self.STRUCT_DECL = ChainMap()
         self.UNION_DECL = ChainMap()
@@ -217,7 +218,11 @@ class CParser:
         if typedef:
             js_name = typedef.name
 
-            if isinstance(n.type, c_ast.Enum):
+            if isinstance(n.type, c_ast.IdentifierType):
+                js_name = n.declname
+                js_type = self.get_leaf_name(n.type)
+                self.TYPEDEF_TYPE_DECL[js_name] = js_type
+            elif isinstance(n.type, c_ast.Enum):
                 t = self.get_enum(n.type, typedef=typedef, type_decl=n)
                 
                 js_type = {
@@ -228,6 +233,11 @@ class CParser:
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
+                    print('ENUM:', js_type)
+
+                    for item_name, item_value in js_type['type']['items'].items():
+                        print('CONST:', item_name, item_value)
+                        self.CONSTS[item_name] = item_value
                 
                 if js_name not in self.ENUM_DECL:
                     self.TYPEDEF_ENUM[js_name] = js_type
@@ -259,12 +269,27 @@ class CParser:
                 
                 if js_name not in self.UNION_DECL:
                     self.TYPEDEF_UNION[js_name] = js_type
-            elif isinstance(n.type, c_ast.IdentifierType):
-                self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
                 raise TypeError(n)
         elif decl or func_decl:
-            if isinstance(n.type, c_ast.Enum):
+            # if isinstance(n.type, c_ast.IdentifierType):
+            #     js_type = self.get_leaf_name(n.type) # str repo of type in C
+            # elif isinstance(n.type, c_ast.IdentifierType):
+            #     self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
+            if isinstance(n.type, c_ast.IdentifierType):
+                js_name = n.declname
+                js_type = self.get_leaf_name(n.type)
+                self.TYPE_DECL[js_name] = js_type
+            elif isinstance(n.type, c_ast.PtrDecl):
+                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+                js_name = decl.name
+
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+            elif isinstance(n.type, c_ast.Enum):
                 t = self.get_enum(n.type, type_decl=n)
                 js_name = n.declname
 
@@ -276,20 +301,14 @@ class CParser:
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
+                    print('ENUM:', js_type)
+
+                    for item_name, item_value in js_type['type']['items'].items():
+                        print('CONST:', item_name, item_value)
+                        self.CONSTS[item_name] = item_value
                 
                 if js_name not in self.TYPEDEF_ENUM:
                     self.ENUM_DECL[js_name] = js_type
-            elif isinstance(n.type, c_ast.PtrDecl):
-                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
-                js_name = decl.name
-
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
-            elif isinstance(n.type, c_ast.IdentifierType):
-                js_type = self.get_leaf_name(n.type) # str repo of type in C
             elif isinstance(n.type, c_ast.Struct):
                 t = self.get_struct(n.type, type_decl=n)
                 
@@ -318,12 +337,27 @@ class CParser:
                 
                 if js_name not in self.TYPEDEF_UNION:
                     self.UNION_DECL[js_name] = js_type
-            elif isinstance(n.type, c_ast.IdentifierType):
-                self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
                 raise TypeError(n)
         else:
-            if isinstance(n.type, c_ast.Enum):
+            # if isinstance(n.type, c_ast.IdentifierType):
+            #     js_type = self.get_leaf_name(n.type) # str repo of type in C
+            # elif isinstance(n.type, c_ast.IdentifierType):
+            #     self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
+            if isinstance(n.type, c_ast.IdentifierType):
+                js_name = n.declname
+                js_type = self.get_leaf_name(n.type)
+                self.TYPE_DECL[js_name] = js_type
+            elif isinstance(n.type, c_ast.PtrDecl):
+                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
+                js_name = decl.name
+
+                js_type = {
+                    'kind': 'TypeDecl',
+                    'name': js_name,
+                    'type': t,
+                }
+            elif isinstance(n.type, c_ast.Enum):
                 t = self.get_enum(n.type, typedef=typedef, type_decl=n)
                 js_name = n.declname
 
@@ -335,20 +369,14 @@ class CParser:
 
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
+                    print('ENUM:', js_type)
+
+                    for item_name, item_value in js_type['type']['items'].items():
+                        print('CONST:', item_name, item_value)
+                        self.CONSTS[item_name] = item_value
                 
                 if js_name not in self.TYPEDEF_ENUM:
                     self.ENUM_DECL[js_name] = js_type
-            elif isinstance(n.type, c_ast.PtrDecl):
-                t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
-                js_name = decl.name
-
-                js_type = {
-                    'kind': 'TypeDecl',
-                    'name': js_name,
-                    'type': t,
-                }
-            elif isinstance(n.type, c_ast.IdentifierType):
-                js_type = self.get_leaf_name(n.type) # str repo of type in C
             elif isinstance(n.type, c_ast.Struct):
                 t = self.get_struct(n.type, typedef=typedef, type_decl=n)
                 
@@ -377,8 +405,6 @@ class CParser:
                 
                 if js_name not in self.TYPEDEF_UNION:
                     self.UNION_DECL[js_name] = js_type
-            elif isinstance(n.type, c_ast.IdentifierType):
-                self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
                 raise TypeError(n)
 
@@ -519,16 +545,6 @@ class CParser:
                 enum_field_value: Any
                 
                 if m.value:
-                    # if isinstance(m.value, c_ast.Constant):
-                    #     enum_field_value = eval(m.value.value)
-                    # elif m.value is None:
-                    #     enum_field_value = None
-                    # elif isinstance(m.value, c_ast.UnaryOp):
-                    #     enum_field_value = eval(f'{m.value.op} {m.value.expr.value}')
-                    # elif isinstance(m.value, c_ast.BinaryOp):
-                    #     enum_field_value = eval(f'{m.value.left.value} {m.value.op} {m.value.right.value}')
-                    # else:
-                    #     raise TypeError(f'get_enum: Unsupported {type(m.value)}')
                     enum_field_value = eval_op(m.value)
                 else:
                     enum_field_value = last_enum_field_value + 1
@@ -549,11 +565,10 @@ class CParser:
 
 
     def get_func_decl(self, n, typedef=None, decl=None, ptr_decl=None) -> CType:
-        js_type: CType = None
-        js_name: str | None = None
-
         assert isinstance(n.args, c_ast.ParamList)
         assert isinstance(n.args.params, list)
+        js_type: CType = None
+        js_name: str | None = None
         typedef_js_name: str | None = None
         decl_js_name: str | None = None
 
@@ -778,6 +793,11 @@ class CParser:
             "",
         ]
 
+        # CONSTS
+        for js_name, value in self.CONSTS.items():
+            line = f'export const {js_name} = {value};'
+            lines.append(line)
+
         # TYPEDEF_ENUM
         for js_name, js_type in self.TYPEDEF_ENUM.items():
             if js_type['kind'] == 'TypeDecl':
@@ -852,6 +872,7 @@ class CParser:
 
     def push_new_processing_context(self):
         self.CONSTS = self.CONSTS.new_child()
+        self.TYPE_DECL = self.TYPE_DECL.new_child()
         self.FUNC_DECL = self.FUNC_DECL.new_child()
         self.STRUCT_DECL = self.STRUCT_DECL.new_child()
         self.UNION_DECL = self.UNION_DECL.new_child()
@@ -871,6 +892,7 @@ class CParser:
     def pop_processing_context(self) -> dict[str, list[dict]]:
         context = {
             'CONSTS': self.CONSTS.maps,
+            'TYPE_DECL': self.TYPE_DECL.maps,
             'FUNC_DECL': self.FUNC_DECL.maps,
             'STRUCT_DECL': self.STRUCT_DECL.maps,
             'UNION_DECL': self.UNION_DECL.maps,
@@ -888,6 +910,7 @@ class CParser:
         }
 
         self.CONSTS = ChainMap()
+        self.TYPE_DECL = ChainMap()
         self.FUNC_DECL = ChainMap()
         self.STRUCT_DECL = ChainMap()
         self.UNION_DECL = ChainMap()
@@ -908,6 +931,7 @@ class CParser:
 
     def push_processing_context(self, maps: dict[str, list[dict]]):
         self.CONSTS = ChainMap(dict(self.CONSTS), *maps['CONSTS'])
+        self.TYPE_DECL = ChainMap(dict(self.TYPE_DECL), *maps['TYPE_DECL'])
         self.FUNC_DECL = ChainMap(dict(self.FUNC_DECL), *maps['FUNC_DECL'])
         self.STRUCT_DECL = ChainMap(dict(self.STRUCT_DECL), *maps['STRUCT_DECL'])
         self.UNION_DECL = ChainMap(dict(self.UNION_DECL), *maps['UNION_DECL'])
@@ -1041,7 +1065,9 @@ class CParser:
         for processed_input_path in processed_input_paths:
             os.remove(processed_input_path)
 
-        # self.print()
+        # verbose
+        if self.verbose:
+            self.print()
 
 
     def print(self):
@@ -1049,6 +1075,10 @@ class CParser:
         pprint(self.CONSTS, sort_dicts=False)
         print()
 
+        print('TYPE_DECL:')
+        pprint(self.TYPE_DECL, sort_dicts=False)
+        print()
+        
         print('FUNC_DECL:')
         pprint(self.FUNC_DECL, sort_dicts=False)
         print()
