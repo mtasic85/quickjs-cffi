@@ -14,9 +14,6 @@ from pycparser import c_ast, parse_file
 
 
 DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -D__attribute__(x) -I../pycparser/utils/fake_libc_include -I./fake_include".split(' ')
-# DEFAULT_FRONTEND_CFLAGS = r"-D__attribute__(x) -I../pycparser/utils/fake_libc_include".split(' ')
-# DEFAULT_FRONTEND_CFLAGS = r"-D__attribute__(x)".split(' ')
-
 
 QUICKJS_FFI_WRAP_PTR_FUNC_DECL = '''
 const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
@@ -146,7 +143,7 @@ class CParser:
     }
 
 
-    def __init__(self, frontend_compiler: str, backend_compiler: str, frontend_cflags: str, shared_library: str, input_path: str, output_path: str, keep_going: bool):
+    def __init__(self, frontend_compiler: str, backend_compiler: str, frontend_cflags: str, shared_library: str, input_path: str, output_path: str, keep_going: bool, verbose: bool):
         self.frontend_compiler = frontend_compiler
         self.backend_compiler = backend_compiler
         self.frontend_cflags = frontend_cflags
@@ -154,8 +151,9 @@ class CParser:
         self.input_path = input_path
         self.output_path = output_path
         self.keep_going = keep_going
+        self.verbose = verbose
 
-        self.TYPE_DECL = ChainMap()
+        self.CONSTS = ChainMap()
         self.FUNC_DECL = ChainMap()
         self.STRUCT_DECL = ChainMap()
         self.UNION_DECL = ChainMap()
@@ -231,7 +229,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
                 
-                self.TYPEDEF_ENUM[js_name] = js_type
+                if js_name not in self.ENUM_DECL:
+                    self.TYPEDEF_ENUM[js_name] = js_type
             elif isinstance(n.type, c_ast.Struct):
                 t = self.get_struct(n.type, typedef=typedef, type_decl=n)
                 
@@ -244,7 +243,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_struct'
                 
-                self.TYPEDEF_STRUCT[js_name] = js_type
+                if js_name not in self.STRUCT_DECL:
+                    self.TYPEDEF_STRUCT[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
                 t = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
@@ -257,7 +257,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_union'
                 
-                self.TYPEDEF_UNION[js_name] = js_type
+                if js_name not in self.UNION_DECL:
+                    self.TYPEDEF_UNION[js_name] = js_type
             elif isinstance(n.type, c_ast.IdentifierType):
                 self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
@@ -276,7 +277,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
                 
-                self.ENUM_DECL[js_name] = js_type
+                if js_name not in self.TYPEDEF_ENUM:
+                    self.ENUM_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.PtrDecl):
                 t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
@@ -300,7 +302,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_struct'
                 
-                self.TYPEDEF_STRUCT[js_name] = js_type
+                if js_name not in self.TYPEDEF_STRUCT:
+                    self.STRUCT_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
                 t = self.get_union(n.type, type_decl=n)
                 
@@ -313,7 +316,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_union'
                 
-                self.TYPEDEF_UNION[js_name] = js_type
+                if js_name not in self.TYPEDEF_UNION:
+                    self.UNION_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.IdentifierType):
                 self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
@@ -332,7 +336,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_enum'
                 
-                self.ENUM_DECL[js_name] = js_type
+                if js_name not in self.TYPEDEF_ENUM:
+                    self.ENUM_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.PtrDecl):
                 t = self.get_ptr_decl(n.type, decl=decl, func_decl=func_decl)
                 js_name = decl.name
@@ -356,7 +361,8 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_struct'
                 
-                self.TYPEDEF_STRUCT[js_name] = js_type
+                if js_name not in self.TYPEDEF_STRUCT:
+                    self.STRUCT_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.Union):
                 t = self.get_union(n.type, typedef=typedef, type_decl=n)
                 
@@ -369,16 +375,13 @@ class CParser:
                 if not js_name:
                     js_name = f'_{randint(0, 2 ** 64)}_union'
                 
-                self.TYPEDEF_UNION[js_name] = js_type
+                if js_name not in self.TYPEDEF_UNION:
+                    self.UNION_DECL[js_name] = js_type
             elif isinstance(n.type, c_ast.IdentifierType):
                 self.TYPEDEF_TYPE_DECL[n.declname] = self.get_leaf_name(n.type)
             else:
                 raise TypeError(n)
 
-        if not js_name:
-            js_name = f'_{randint(0, 2 ** 64)}_type_decl'
-        
-        self.TYPE_DECL[js_name] = js_type
         return js_type
 
 
@@ -848,7 +851,7 @@ class CParser:
 
 
     def push_new_processing_context(self):
-        self.TYPE_DECL = self.TYPE_DECL.new_child()
+        self.CONSTS = self.CONSTS.new_child()
         self.FUNC_DECL = self.FUNC_DECL.new_child()
         self.STRUCT_DECL = self.STRUCT_DECL.new_child()
         self.UNION_DECL = self.UNION_DECL.new_child()
@@ -867,7 +870,7 @@ class CParser:
 
     def pop_processing_context(self) -> dict[str, list[dict]]:
         context = {
-            'TYPE_DECL': self.TYPE_DECL.maps,
+            'CONSTS': self.CONSTS.maps,
             'FUNC_DECL': self.FUNC_DECL.maps,
             'STRUCT_DECL': self.STRUCT_DECL.maps,
             'UNION_DECL': self.UNION_DECL.maps,
@@ -884,7 +887,7 @@ class CParser:
             'SIMPLIFIED_TYPEDEF_PTR_DECL': self.SIMPLIFIED_TYPEDEF_PTR_DECL.maps,
         }
 
-        self.TYPE_DECL = ChainMap()
+        self.CONSTS = ChainMap()
         self.FUNC_DECL = ChainMap()
         self.STRUCT_DECL = ChainMap()
         self.UNION_DECL = ChainMap()
@@ -904,7 +907,7 @@ class CParser:
 
 
     def push_processing_context(self, maps: dict[str, list[dict]]):
-        self.TYPE_DECL = ChainMap(dict(self.TYPE_DECL), *maps['TYPE_DECL'])
+        self.CONSTS = ChainMap(dict(self.CONSTS), *maps['CONSTS'])
         self.FUNC_DECL = ChainMap(dict(self.FUNC_DECL), *maps['FUNC_DECL'])
         self.STRUCT_DECL = ChainMap(dict(self.STRUCT_DECL), *maps['STRUCT_DECL'])
         self.UNION_DECL = ChainMap(dict(self.UNION_DECL), *maps['UNION_DECL'])
@@ -1042,8 +1045,8 @@ class CParser:
 
 
     def print(self):
-        print('TYPE_DECL:')
-        pprint(self.TYPE_DECL, sort_dicts=False)
+        print('CONSTS:')
+        pprint(self.CONSTS, sort_dicts=False)
         print()
 
         print('FUNC_DECL:')
@@ -1101,6 +1104,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', dest='input_path', help='path to .h file or whole directory')
     parser.add_argument('-o', dest='output_path', help='output path to translated .js/.so file or whole directory')
     parser.add_argument('-k', dest='keep_going', action='store_true', help='keep translating even on errors')
+    parser.add_argument('-v', dest='verbose', action='store_true', help='verbose')
     args = parser.parse_args()
 
     # translate
@@ -1110,6 +1114,7 @@ if __name__ == '__main__':
                        args.shared_library,
                        args.input_path,
                        args.output_path,
-                       args.keep_going)
+                       args.keep_going,
+                       args.verbose)
     
     c_parser.translate()
