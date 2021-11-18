@@ -183,10 +183,6 @@ class CParser:
         self.TYPEDEF_PTR_DECL = ChainMap()
         self.TYPEDEF_TYPE_DECL = ChainMap()
 
-        self.SIMPLIFIED_FUNC_DECL = ChainMap()
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
-
 
     def push_new_processing_context(self):
         self.CONSTS = self.CONSTS.new_child()
@@ -202,9 +198,6 @@ class CParser:
         self.TYPEDEF_FUNC_DECL = self.TYPEDEF_FUNC_DECL.new_child()
         self.TYPEDEF_PTR_DECL = self.TYPEDEF_PTR_DECL.new_child()
         self.TYPEDEF_TYPE_DECL = self.TYPEDEF_TYPE_DECL.new_child()
-        self.SIMPLIFIED_FUNC_DECL = self.SIMPLIFIED_FUNC_DECL.new_child()
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = self.SIMPLIFIED_TYPEDEF_FUNC_DECL.new_child()
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = self.SIMPLIFIED_TYPEDEF_PTR_DECL.new_child()
 
 
     def pop_processing_context(self) -> dict[str, list[dict]]:
@@ -222,9 +215,6 @@ class CParser:
             'TYPEDEF_FUNC_DECL': self.TYPEDEF_FUNC_DECL.maps,
             'TYPEDEF_PTR_DECL': self.TYPEDEF_PTR_DECL.maps,
             'TYPEDEF_TYPE_DECL': self.TYPEDEF_TYPE_DECL.maps,
-            'SIMPLIFIED_FUNC_DECL': self.SIMPLIFIED_FUNC_DECL.maps,
-            'SIMPLIFIED_TYPEDEF_FUNC_DECL': self.SIMPLIFIED_TYPEDEF_FUNC_DECL.maps,
-            'SIMPLIFIED_TYPEDEF_PTR_DECL': self.SIMPLIFIED_TYPEDEF_PTR_DECL.maps,
         }
 
         self.CONSTS = ChainMap()
@@ -240,10 +230,6 @@ class CParser:
         self.TYPEDEF_FUNC_DECL = ChainMap()
         self.TYPEDEF_PTR_DECL = ChainMap()
         self.TYPEDEF_TYPE_DECL = ChainMap()
-        self.SIMPLIFIED_FUNC_DECL = ChainMap()
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
-
         return context
 
 
@@ -261,9 +247,6 @@ class CParser:
         self.TYPEDEF_FUNC_DECL = ChainMap(dict(self.TYPEDEF_FUNC_DECL), *maps['TYPEDEF_FUNC_DECL'])
         self.TYPEDEF_PTR_DECL = ChainMap(dict(self.TYPEDEF_PTR_DECL), *maps['TYPEDEF_PTR_DECL'])
         self.TYPEDEF_TYPE_DECL = ChainMap(dict(self.TYPEDEF_TYPE_DECL), *maps['TYPEDEF_TYPE_DECL'])
-        self.SIMPLIFIED_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_FUNC_DECL), *maps['SIMPLIFIED_FUNC_DECL'])
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_FUNC_DECL), *maps['SIMPLIFIED_TYPEDEF_FUNC_DECL'])
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_PTR_DECL), *maps['SIMPLIFIED_TYPEDEF_PTR_DECL'])
 
 
     def get_leaf_node(self, n):
@@ -822,6 +805,8 @@ class CParser:
                 output_js_type = 'pointer'
         elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
             output_js_type = self.simplify_type(js_type['type'])
+        # elif isinstance(js_type, (list, tuple)):
+        #     output_js_type = [self.simplify_type(n) for n in js_type]
         elif isinstance(js_type, str):
             if js_type in self.BUILTIN_TYPES:
                 output_js_type = self.BUILTIN_TYPES[js_type]
@@ -829,51 +814,10 @@ class CParser:
                 output_js_type = 'pointer'
             else:
                 output_js_type = js_type
-        elif isinstance(js_type, (list, tuple)):
-            output_js_type = [self.simplify_type(n) for n in js_type]
         else:
             output_js_type = js_type 
 
         return output_js_type
-
-
-    def simplify_FUNC_DECL(self):
-        FUNC_DECL = deepcopy(self.FUNC_DECL)
-
-        for js_name, js_type in FUNC_DECL.items():
-            js_type = deepcopy(js_type)
-            js_type['return_type'] = self.simplify_type(js_type['return_type'])
-            js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
-            self.SIMPLIFIED_FUNC_DECL[js_name] = js_type
-
-
-    def simplify_TYPEDEF_FUNC_DECL(self):
-        TYPEDEF_FUNC_DECL = deepcopy(self.TYPEDEF_FUNC_DECL)
-
-        for js_name, js_type in TYPEDEF_FUNC_DECL.items():
-            js_type = deepcopy(js_type)
-            js_type['return_type'] = self.simplify_type(js_type['return_type'])
-            js_type['params_types'] = [self.simplify_type(n) for n in js_type['params_types']]
-            self.TYPEDEF_FUNC_DECL[js_name] = js_type # FIXME: check simplify_FUNC_DECL
-
-
-    def simplify_TYPEDEF_PTR_DECL(self):
-        TYPEDEF_PTR_DECL = deepcopy(self.TYPEDEF_PTR_DECL)
-
-        for js_name, js_type in TYPEDEF_PTR_DECL.items():
-            js_type = deepcopy(js_type)
-
-            if isinstance(js_type['type'], dict):
-                js_type['type']['return_type'] = self.simplify_type(js_type['type']['return_type'])
-                js_type['type']['params_types'] = [self.simplify_type(n) for n in js_type['type']['params_types']]
-
-            self.TYPEDEF_PTR_DECL[js_name] = js_type # FIXME: check simplify_FUNC_DECL
-
-
-    def simplify_types_defitions(self):
-        self.simplify_TYPEDEF_FUNC_DECL()
-        self.simplify_TYPEDEF_PTR_DECL()
-        self.simplify_FUNC_DECL()
 
 
     def _get_size_of(self, js_name: str) -> int:
@@ -896,10 +840,8 @@ class CParser:
             ./a.out
         """
 
-        # print('cmd:', cmd)
         output: bytes = subprocess.check_output(cmd, shell=True)
         size: int = int(output.decode())
-        # print('get_size_of', js_name, size)
         return size
 
 
@@ -911,8 +853,6 @@ class CParser:
 
 
     def translate_to_js(self) -> str:
-        self.simplify_types_defitions()
-        
         lines: list[str] = [
             "import { CFunction, CCallback } from 'quickjs-ffi.js';",
             "import * as ffi from 'quickjs-ffi.so';",
@@ -926,11 +866,6 @@ class CParser:
         ]
 
         # CONSTS
-        '''
-        for js_name, value in self.CONSTS.items():
-            line = f'export const {js_name} = {value};'
-            lines.append(line)
-        '''
         line = 'export const CONSTS = {'
         lines.append(line)
 
@@ -944,23 +879,23 @@ class CParser:
         # TYPEDEF_ENUM
         for js_name, js_type in self.TYPEDEF_ENUM.items():
             line = f"export const {js_name} = {js_type['items']};"
-            line += f"/* TYPEDEF_ENUM: {js_type} */"
+            line += f"/* TYPEDEF_ENUM: {js_name} {js_type} */"
             lines.append(line)
         
         # ENUM_DECL
         for js_name, js_type in self.ENUM_DECL.items():
             line = f"export const {js_name} = {js_type['items']};"
-            line += f"/* ENUM_DECL: {js_type} */"
+            line += f"/* ENUM_DECL: {js_name} {js_type} */"
             lines.append(line)
 
         # TYPEDEF_FUNC_DECL
         for js_name, js_type in self.TYPEDEF_FUNC_DECL.items():
-            line = f"/* TYPEDEF_FUNC_DECL: {js_type} */"
+            line = f"/* TYPEDEF_FUNC_DECL: {js_name} {js_type} */"
             lines.append(line)
 
         # TYPEDEF_PTR_DECL
         for js_name, js_type in self.TYPEDEF_PTR_DECL.items():
-            line = f"/* TYPEDEF_PTR_DECL: {js_type} */"
+            line = f"/* TYPEDEF_PTR_DECL: {js_name} {js_type} */"
             lines.append(line)
 
         # FUNC_DECL
@@ -978,7 +913,7 @@ class CParser:
                     if isinstance(pt, dict) and isinstance(pt['type'], str) and pt['type'] in self.TYPEDEF_FUNC_DECL:
                         typedef_func_decl = self.TYPEDEF_FUNC_DECL[pt['type']]
                         typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
-                        typedef_func_decl_params_types = self.simplify_type(typedef_func_decl['params_types'])
+                        typedef_func_decl_params_types = [self.simplify_type(n) for n in typedef_func_decl['params_types']]
 
                         new_pt = {
                             'kind': 'PtrFuncDecl',
@@ -988,10 +923,10 @@ class CParser:
 
                         _params_types.append(new_pt)
                     else:
-                        _params_types.append(pt)
+                        new_pt = self.simplify_type(pt)
+                        _params_types.append(new_pt)
                 else:
-                    new_pt = self.simplify_type(pt)
-                    _params_types.append(new_pt)
+                    _params_types.append(pt)
 
             params_types = _params_types
 
@@ -1005,7 +940,7 @@ class CParser:
                     if tpd['kind'] == 'PtrDecl' and isinstance(tpd['type'], dict) and tpd['type']['kind'] == 'FuncDecl':
                         typedef_func_decl = tpd['type']
                         typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
-                        typedef_func_decl_params_types = self.simplify_type(typedef_func_decl['params_types'])
+                        typedef_func_decl_params_types = [self.simplify_type(n) for n in typedef_func_decl['params_types']]
 
                         new_pt = {
                             'kind': 'PtrFuncDecl',
@@ -1015,18 +950,19 @@ class CParser:
 
                         _params_types.append(new_pt)
                     else:
-                        _params_types.append(pt)
+                        new_pt = self.simplify_type(pt)
+                        _params_types.append(new_pt)
                 else:
-                    new_pt = self.simplify_type(pt)
-                    _params_types.append(new_pt)
+                    _params_types.append(pt)
 
             params_types = _params_types
-
             print('!', js_name, return_type, params_types)
+
 
             # export of func
             types = [return_type, *params_types]
             line = f"export const {js_name} = _quickjs_ffi_wrap_ptr_func_decl(LIB, {dumps(js_name)}, null, ...{types});"
+            line += f"/* FUNC_DECL: {js_name} {js_type} */"
             lines.append(line)
 
         # STRUCT_DECL
@@ -1036,7 +972,7 @@ class CParser:
 
             size = self.get_size_of(js_name)
             line = f'export const sizeof_{js_name} = {size};' 
-            line += f"/* STRUCT_DECL: {js_type} */"
+            line += f"/* STRUCT_DECL: {js_name} {js_type} */"
             lines.append(line)
 
         # UNION_DECL
@@ -1046,7 +982,7 @@ class CParser:
 
             size = self.get_size_of(js_name)
             line = f'export const sizeof_{js_name} = {size};' 
-            line += f"/* UNION_DECL: {js_type} */"
+            line += f"/* UNION_DECL: {js_name} {js_type} */"
             lines.append(line)
 
         # TYPEDEF_STRUCT
@@ -1056,7 +992,7 @@ class CParser:
 
             size = self.get_size_of(js_name)
             line = f'export const sizeof_{js_name} = {size};' 
-            line += f"/* TYPEDEF_STRUCT: {js_type} */"
+            line += f"/* TYPEDEF_STRUCT: {js_name} {js_type} */"
             lines.append(line)
 
         # TYPEDEF_UNION
@@ -1066,9 +1002,8 @@ class CParser:
 
             size = self.get_size_of(js_name)
             line = f'export const sizeof_{js_name} = {size};' 
-            line += f"/* TYPEDEF_UNION: {js_type} */"
+            line += f"/* TYPEDEF_UNION: {js_name} {js_type} */"
             lines.append(line)
-
 
         output: str = '\n'.join(lines)
         return output
