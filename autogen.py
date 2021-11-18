@@ -43,6 +43,7 @@ const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
     try {
         c_func = new CFunction(lib, name, nargs, ...c_types);
     } catch (e) {
+        console.log('Warning:', name, e);
         c_func = null;
     }
     
@@ -109,12 +110,6 @@ class CParser:
         'complex_float',
         'complex_double',
         'complex_longdouble',
-        'uint8_t',
-        'int8_t',
-        'uint16_t',
-        'int16_t',
-        'uint32_t',
-        'int32_t',
         'char',
         'short',
         'int',
@@ -140,11 +135,31 @@ class CParser:
         'signed long long': 'sint64', # FIXME: platform specific
         'unsigned long long': 'uint64', # FIXME: platform specific
         'long double': 'longdouble',
+        'int8_t': 'sint8',
+        'uint8_t': 'uint8',
+        'int16_t': 'sint16',
+        'uint16_t': 'uint16',
+        'int32_t': 'sint32',
+        'uint32_t': 'uint32',
+        'int64_t': 'sint64',
+        'uint64_t': 'uint64',
     }
 
 
-    def __init__(self, frontend_compiler: str, backend_compiler: str, frontend_cflags: str, shared_library: str, input_path: str, output_path: str, keep_going: bool, verbose: bool):
+    def __init__(self,
+                 frontend_compiler: str,
+                 frontend_cflags: str,
+                 sizeof_cflags: str,
+                 sizeof_include: str,
+                 backend_compiler: str,
+                 shared_library: str,
+                 input_path: str,
+                 output_path: str,
+                 keep_going: bool,
+                 verbose: bool):
         self.frontend_compiler = frontend_compiler
+        self.sizeof_cflags = sizeof_cflags
+        self.sizeof_include = sizeof_include
         self.backend_compiler = backend_compiler
         self.frontend_cflags = frontend_cflags
         self.shared_library = shared_library
@@ -171,6 +186,84 @@ class CParser:
         self.SIMPLIFIED_FUNC_DECL = ChainMap()
         self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
         self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
+
+
+    def push_new_processing_context(self):
+        self.CONSTS = self.CONSTS.new_child()
+        self.TYPE_DECL = self.TYPE_DECL.new_child()
+        self.FUNC_DECL = self.FUNC_DECL.new_child()
+        self.STRUCT_DECL = self.STRUCT_DECL.new_child()
+        self.UNION_DECL = self.UNION_DECL.new_child()
+        self.ENUM_DECL = self.ENUM_DECL.new_child()
+        self.ARRAY_DECL = self.ARRAY_DECL.new_child()
+        self.TYPEDEF_STRUCT = self.TYPEDEF_STRUCT.new_child()
+        self.TYPEDEF_UNION = self.TYPEDEF_UNION.new_child()
+        self.TYPEDEF_ENUM = self.TYPEDEF_ENUM.new_child()
+        self.TYPEDEF_FUNC_DECL = self.TYPEDEF_FUNC_DECL.new_child()
+        self.TYPEDEF_PTR_DECL = self.TYPEDEF_PTR_DECL.new_child()
+        self.TYPEDEF_TYPE_DECL = self.TYPEDEF_TYPE_DECL.new_child()
+        self.SIMPLIFIED_FUNC_DECL = self.SIMPLIFIED_FUNC_DECL.new_child()
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = self.SIMPLIFIED_TYPEDEF_FUNC_DECL.new_child()
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = self.SIMPLIFIED_TYPEDEF_PTR_DECL.new_child()
+
+
+    def pop_processing_context(self) -> dict[str, list[dict]]:
+        context = {
+            'CONSTS': self.CONSTS.maps,
+            'TYPE_DECL': self.TYPE_DECL.maps,
+            'FUNC_DECL': self.FUNC_DECL.maps,
+            'STRUCT_DECL': self.STRUCT_DECL.maps,
+            'UNION_DECL': self.UNION_DECL.maps,
+            'ENUM_DECL': self.ENUM_DECL.maps,
+            'ARRAY_DECL': self.ARRAY_DECL.maps,
+            'TYPEDEF_STRUCT': self.TYPEDEF_STRUCT.maps,
+            'TYPEDEF_UNION': self.TYPEDEF_UNION.maps,
+            'TYPEDEF_ENUM': self.TYPEDEF_ENUM.maps,
+            'TYPEDEF_FUNC_DECL': self.TYPEDEF_FUNC_DECL.maps,
+            'TYPEDEF_PTR_DECL': self.TYPEDEF_PTR_DECL.maps,
+            'TYPEDEF_TYPE_DECL': self.TYPEDEF_TYPE_DECL.maps,
+            'SIMPLIFIED_FUNC_DECL': self.SIMPLIFIED_FUNC_DECL.maps,
+            'SIMPLIFIED_TYPEDEF_FUNC_DECL': self.SIMPLIFIED_TYPEDEF_FUNC_DECL.maps,
+            'SIMPLIFIED_TYPEDEF_PTR_DECL': self.SIMPLIFIED_TYPEDEF_PTR_DECL.maps,
+        }
+
+        self.CONSTS = ChainMap()
+        self.TYPE_DECL = ChainMap()
+        self.FUNC_DECL = ChainMap()
+        self.STRUCT_DECL = ChainMap()
+        self.UNION_DECL = ChainMap()
+        self.ENUM_DECL = ChainMap()
+        self.ARRAY_DECL = ChainMap()
+        self.TYPEDEF_STRUCT = ChainMap()
+        self.TYPEDEF_UNION = ChainMap()
+        self.TYPEDEF_ENUM = ChainMap()
+        self.TYPEDEF_FUNC_DECL = ChainMap()
+        self.TYPEDEF_PTR_DECL = ChainMap()
+        self.TYPEDEF_TYPE_DECL = ChainMap()
+        self.SIMPLIFIED_FUNC_DECL = ChainMap()
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
+
+        return context
+
+
+    def push_processing_context(self, maps: dict[str, list[dict]]):
+        self.CONSTS = ChainMap(dict(self.CONSTS), *maps['CONSTS'])
+        self.TYPE_DECL = ChainMap(dict(self.TYPE_DECL), *maps['TYPE_DECL'])
+        self.FUNC_DECL = ChainMap(dict(self.FUNC_DECL), *maps['FUNC_DECL'])
+        self.STRUCT_DECL = ChainMap(dict(self.STRUCT_DECL), *maps['STRUCT_DECL'])
+        self.UNION_DECL = ChainMap(dict(self.UNION_DECL), *maps['UNION_DECL'])
+        self.ENUM_DECL = ChainMap(dict(self.ENUM_DECL), *maps['ENUM_DECL'])
+        self.ARRAY_DECL = ChainMap(dict(self.ARRAY_DECL), *maps['ARRAY_DECL'])
+        self.TYPEDEF_STRUCT = ChainMap(dict(self.TYPEDEF_STRUCT), *maps['TYPEDEF_STRUCT'])
+        self.TYPEDEF_UNION = ChainMap(dict(self.TYPEDEF_UNION), *maps['TYPEDEF_UNION'])
+        self.TYPEDEF_ENUM = ChainMap(dict(self.TYPEDEF_ENUM), *maps['TYPEDEF_ENUM'])
+        self.TYPEDEF_FUNC_DECL = ChainMap(dict(self.TYPEDEF_FUNC_DECL), *maps['TYPEDEF_FUNC_DECL'])
+        self.TYPEDEF_PTR_DECL = ChainMap(dict(self.TYPEDEF_PTR_DECL), *maps['TYPEDEF_PTR_DECL'])
+        self.TYPEDEF_TYPE_DECL = ChainMap(dict(self.TYPEDEF_TYPE_DECL), *maps['TYPEDEF_TYPE_DECL'])
+        self.SIMPLIFIED_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_FUNC_DECL), *maps['SIMPLIFIED_FUNC_DECL'])
+        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_FUNC_DECL), *maps['SIMPLIFIED_TYPEDEF_FUNC_DECL'])
+        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_PTR_DECL), *maps['SIMPLIFIED_TYPEDEF_PTR_DECL'])
 
 
     def get_leaf_node(self, n):
@@ -709,6 +802,8 @@ class CParser:
 
 
     def preprocess_header_file(self, compiler: str, cflags: list[str], input_path: str, output_path: str):
+        print('DEFAULT_FRONTEND_CFLAGS', DEFAULT_FRONTEND_CFLAGS)
+        print('cflags', cflags)
         new_cflags = DEFAULT_FRONTEND_CFLAGS + cflags
         cmd = [compiler, '-E', *new_cflags, input_path]
         output: bytes = subprocess.check_output(cmd)
@@ -734,6 +829,8 @@ class CParser:
                 output_js_type = 'pointer'
             else:
                 output_js_type = js_type
+        elif isinstance(js_type, (list, tuple)):
+            output_js_type = [self.simplify_type(n) for n in js_type]
         else:
             output_js_type = js_type 
 
@@ -779,11 +876,48 @@ class CParser:
         self.simplify_FUNC_DECL()
 
 
+    def _get_size_of(self, js_name: str) -> int:
+        cmd = f"""
+            rm -f ./a.out
+
+            gcc -x c {self.sizeof_cflags} - <<<'
+                #include <stdio.h>
+        """
+
+        cmd += '\n'.join(f'#include <{n}>' for n in self.sizeof_include.split(','))
+
+        cmd += f"""
+                int main() {{
+                    printf("%u", sizeof({js_name}));
+                    return 0;
+                }}
+            '
+
+            ./a.out
+        """
+
+        # print('cmd:', cmd)
+        output: bytes = subprocess.check_output(cmd, shell=True)
+        size: int = int(output.decode())
+        # print('get_size_of', js_name, size)
+        return size
+
+
+    def get_size_of(self, js_name: str) -> int:
+        try:
+            return self._get_size_of(js_name)
+        except Exception as e:
+            return -1
+
+
     def translate_to_js(self) -> str:
         self.simplify_types_defitions()
         
         lines: list[str] = [
             "import { CFunction, CCallback } from 'quickjs-ffi.js';",
+            "import * as ffi from 'quickjs-ffi.so';",
+            "export const malloc = ffi.malloc;",
+            "export const free = ffi.free;",
             f"const LIB = {dumps(self.shared_library)};",
             "const None = null;",
             "",
@@ -809,23 +943,13 @@ class CParser:
 
         # TYPEDEF_ENUM
         for js_name, js_type in self.TYPEDEF_ENUM.items():
-            if js_type['kind'] == 'TypeDecl':
-                line = f"export const {js_name} = {js_type['type']['items']};"
-            else:
-                raise ValueError(js_type)
-
+            line = f"export const {js_name} = {js_type['items']};"
             line += f"/* TYPEDEF_ENUM: {js_type} */"
             lines.append(line)
         
         # ENUM_DECL
         for js_name, js_type in self.ENUM_DECL.items():
-            if js_type['kind'] == 'Enum':
-                line = f"export const {js_name} = {js_type['items']};"
-            elif js_type['kind'] == 'TypeDecl':
-                line = f"export const {js_name} = {js_type['type']['items']};"
-            else:
-                raise ValueError(js_type)
-
+            line = f"export const {js_name} = {js_type['items']};"
             line += f"/* ENUM_DECL: {js_type} */"
             lines.append(line)
 
@@ -866,9 +990,39 @@ class CParser:
                     else:
                         _params_types.append(pt)
                 else:
-                    _params_types.append(pt)
+                    new_pt = self.simplify_type(pt)
+                    _params_types.append(new_pt)
 
             params_types = _params_types
+
+            # find additional PtrFuncDecl
+            _params_types = []
+
+            for pt in params_types:
+                if isinstance(pt, str) and pt in self.TYPEDEF_PTR_DECL:
+                    tpd = self.TYPEDEF_PTR_DECL[pt]
+
+                    if tpd['kind'] == 'PtrDecl' and isinstance(tpd['type'], dict) and tpd['type']['kind'] == 'FuncDecl':
+                        typedef_func_decl = tpd['type']
+                        typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
+                        typedef_func_decl_params_types = self.simplify_type(typedef_func_decl['params_types'])
+
+                        new_pt = {
+                            'kind': 'PtrFuncDecl',
+                            'return_type': typedef_func_decl_return_type,
+                            'params_types': typedef_func_decl_params_types,
+                        }
+
+                        _params_types.append(new_pt)
+                    else:
+                        _params_types.append(pt)
+                else:
+                    new_pt = self.simplify_type(pt)
+                    _params_types.append(new_pt)
+
+            params_types = _params_types
+
+            print('!', js_name, return_type, params_types)
 
             # export of func
             types = [return_type, *params_types]
@@ -877,104 +1031,47 @@ class CParser:
 
         # STRUCT_DECL
         for js_name, js_type in self.STRUCT_DECL.items():
-            line = f"/* STRUCT_DECL: {js_type} */"
+            if js_name.startswith('_') and js_name.endswith('_struct'):
+                continue
+
+            size = self.get_size_of(js_name)
+            line = f'export const sizeof_{js_name} = {size};' 
+            line += f"/* STRUCT_DECL: {js_type} */"
             lines.append(line)
 
         # UNION_DECL
         for js_name, js_type in self.UNION_DECL.items():
-            line = f"/* UNION_DECL: {js_type} */"
+            if js_name.startswith('_') and js_name.endswith('_union'):
+                continue
+
+            size = self.get_size_of(js_name)
+            line = f'export const sizeof_{js_name} = {size};' 
+            line += f"/* UNION_DECL: {js_type} */"
             lines.append(line)
 
         # TYPEDEF_STRUCT
         for js_name, js_type in self.TYPEDEF_STRUCT.items():
-            line = f"/* TYPEDEF_STRUCT: {js_type} */"
+            if js_name.startswith('_') and js_name.endswith('_struct'):
+                continue
+
+            size = self.get_size_of(js_name)
+            line = f'export const sizeof_{js_name} = {size};' 
+            line += f"/* TYPEDEF_STRUCT: {js_type} */"
             lines.append(line)
 
         # TYPEDEF_UNION
         for js_name, js_type in self.TYPEDEF_UNION.items():
-            line = f"/* TYPEDEF_UNION: {js_type} */"
+            if js_name.startswith('_') and js_name.endswith('_union'):
+                continue
+
+            size = self.get_size_of(js_name)
+            line = f'export const sizeof_{js_name} = {size};' 
+            line += f"/* TYPEDEF_UNION: {js_type} */"
             lines.append(line)
+
 
         output: str = '\n'.join(lines)
         return output
-
-
-    def push_new_processing_context(self):
-        self.CONSTS = self.CONSTS.new_child()
-        self.TYPE_DECL = self.TYPE_DECL.new_child()
-        self.FUNC_DECL = self.FUNC_DECL.new_child()
-        self.STRUCT_DECL = self.STRUCT_DECL.new_child()
-        self.UNION_DECL = self.UNION_DECL.new_child()
-        self.ENUM_DECL = self.ENUM_DECL.new_child()
-        self.ARRAY_DECL = self.ARRAY_DECL.new_child()
-        self.TYPEDEF_STRUCT = self.TYPEDEF_STRUCT.new_child()
-        self.TYPEDEF_UNION = self.TYPEDEF_UNION.new_child()
-        self.TYPEDEF_ENUM = self.TYPEDEF_ENUM.new_child()
-        self.TYPEDEF_FUNC_DECL = self.TYPEDEF_FUNC_DECL.new_child()
-        self.TYPEDEF_PTR_DECL = self.TYPEDEF_PTR_DECL.new_child()
-        self.TYPEDEF_TYPE_DECL = self.TYPEDEF_TYPE_DECL.new_child()
-        self.SIMPLIFIED_FUNC_DECL = self.SIMPLIFIED_FUNC_DECL.new_child()
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = self.SIMPLIFIED_TYPEDEF_FUNC_DECL.new_child()
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = self.SIMPLIFIED_TYPEDEF_PTR_DECL.new_child()
-
-
-    def pop_processing_context(self) -> dict[str, list[dict]]:
-        context = {
-            'CONSTS': self.CONSTS.maps,
-            'TYPE_DECL': self.TYPE_DECL.maps,
-            'FUNC_DECL': self.FUNC_DECL.maps,
-            'STRUCT_DECL': self.STRUCT_DECL.maps,
-            'UNION_DECL': self.UNION_DECL.maps,
-            'ENUM_DECL': self.ENUM_DECL.maps,
-            'ARRAY_DECL': self.ARRAY_DECL.maps,
-            'TYPEDEF_STRUCT': self.TYPEDEF_STRUCT.maps,
-            'TYPEDEF_UNION': self.TYPEDEF_UNION.maps,
-            'TYPEDEF_ENUM': self.TYPEDEF_ENUM.maps,
-            'TYPEDEF_FUNC_DECL': self.TYPEDEF_FUNC_DECL.maps,
-            'TYPEDEF_PTR_DECL': self.TYPEDEF_PTR_DECL.maps,
-            'TYPEDEF_TYPE_DECL': self.TYPEDEF_TYPE_DECL.maps,
-            'SIMPLIFIED_FUNC_DECL': self.SIMPLIFIED_FUNC_DECL.maps,
-            'SIMPLIFIED_TYPEDEF_FUNC_DECL': self.SIMPLIFIED_TYPEDEF_FUNC_DECL.maps,
-            'SIMPLIFIED_TYPEDEF_PTR_DECL': self.SIMPLIFIED_TYPEDEF_PTR_DECL.maps,
-        }
-
-        self.CONSTS = ChainMap()
-        self.TYPE_DECL = ChainMap()
-        self.FUNC_DECL = ChainMap()
-        self.STRUCT_DECL = ChainMap()
-        self.UNION_DECL = ChainMap()
-        self.ENUM_DECL = ChainMap()
-        self.ARRAY_DECL = ChainMap()
-        self.TYPEDEF_STRUCT = ChainMap()
-        self.TYPEDEF_UNION = ChainMap()
-        self.TYPEDEF_ENUM = ChainMap()
-        self.TYPEDEF_FUNC_DECL = ChainMap()
-        self.TYPEDEF_PTR_DECL = ChainMap()
-        self.TYPEDEF_TYPE_DECL = ChainMap()
-        self.SIMPLIFIED_FUNC_DECL = ChainMap()
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap()
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap()
-
-        return context
-
-
-    def push_processing_context(self, maps: dict[str, list[dict]]):
-        self.CONSTS = ChainMap(dict(self.CONSTS), *maps['CONSTS'])
-        self.TYPE_DECL = ChainMap(dict(self.TYPE_DECL), *maps['TYPE_DECL'])
-        self.FUNC_DECL = ChainMap(dict(self.FUNC_DECL), *maps['FUNC_DECL'])
-        self.STRUCT_DECL = ChainMap(dict(self.STRUCT_DECL), *maps['STRUCT_DECL'])
-        self.UNION_DECL = ChainMap(dict(self.UNION_DECL), *maps['UNION_DECL'])
-        self.ENUM_DECL = ChainMap(dict(self.ENUM_DECL), *maps['ENUM_DECL'])
-        self.ARRAY_DECL = ChainMap(dict(self.ARRAY_DECL), *maps['ARRAY_DECL'])
-        self.TYPEDEF_STRUCT = ChainMap(dict(self.TYPEDEF_STRUCT), *maps['TYPEDEF_STRUCT'])
-        self.TYPEDEF_UNION = ChainMap(dict(self.TYPEDEF_UNION), *maps['TYPEDEF_UNION'])
-        self.TYPEDEF_ENUM = ChainMap(dict(self.TYPEDEF_ENUM), *maps['TYPEDEF_ENUM'])
-        self.TYPEDEF_FUNC_DECL = ChainMap(dict(self.TYPEDEF_FUNC_DECL), *maps['TYPEDEF_FUNC_DECL'])
-        self.TYPEDEF_PTR_DECL = ChainMap(dict(self.TYPEDEF_PTR_DECL), *maps['TYPEDEF_PTR_DECL'])
-        self.TYPEDEF_TYPE_DECL = ChainMap(dict(self.TYPEDEF_TYPE_DECL), *maps['TYPEDEF_TYPE_DECL'])
-        self.SIMPLIFIED_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_FUNC_DECL), *maps['SIMPLIFIED_FUNC_DECL'])
-        self.SIMPLIFIED_TYPEDEF_FUNC_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_FUNC_DECL), *maps['SIMPLIFIED_TYPEDEF_FUNC_DECL'])
-        self.SIMPLIFIED_TYPEDEF_PTR_DECL = ChainMap(dict(self.SIMPLIFIED_TYPEDEF_PTR_DECL), *maps['SIMPLIFIED_TYPEDEF_PTR_DECL'])
 
 
     def translate(self):
@@ -1159,6 +1256,8 @@ if __name__ == '__main__':
     parser.add_argument('-fc', dest='frontend_compiler', default='gcc', help='gcc, clang, tcc')
     parser.add_argument('-bc', dest='backend_compiler', default='gcc', help='gcc, clang, tcc')
     parser.add_argument('-fc-cflags', dest='frontend_cflags', default='', help='Frontend compiler\'s cflags')
+    parser.add_argument('-sizeof-cflags', dest='sizeof_cflags', default='', help='sizeof cflags')
+    parser.add_argument('-sizeof-include', dest='sizeof_include', default='', help='sizeof include path')
     parser.add_argument('-l', dest='shared_library', default='./libcfltk.so', help='Shared library')
     parser.add_argument('-i', dest='input_path', help='path to .h file or whole directory')
     parser.add_argument('-o', dest='output_path', help='output path to translated .js/.so file or whole directory')
@@ -1168,8 +1267,10 @@ if __name__ == '__main__':
 
     # translate
     c_parser = CParser(args.frontend_compiler,
-                       args.backend_compiler,
                        [n for n in args.frontend_cflags.split(' ') if n],
+                       args.sizeof_cflags,
+                       args.sizeof_include,
+                       args.backend_compiler,
                        args.shared_library,
                        args.input_path,
                        args.output_path,
