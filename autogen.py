@@ -777,6 +777,33 @@ class CParser:
                 raise TypeError(type(n.type))
 
 
+    def simplify_type(self, js_type: Union[str, dict]) -> CType:
+        output_js_type: CType
+
+        if isinstance(js_type, dict) and js_type['kind'] == 'PtrDecl':
+            if js_type['type'] == 'char':
+                output_js_type = 'string'
+            else:
+                output_js_type = 'pointer'
+        elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
+            output_js_type = self.simplify_type(js_type['type'])
+        elif isinstance(js_type, str):
+            js_name = js_type
+            
+            if js_name in self.BUILTIN_TYPES:
+                output_js_type = self.BUILTIN_TYPES[js_name]
+            elif js_name in self.TYPEDEF_PTR_DECL:
+                output_js_type = 'pointer'
+            elif js_name in self.TYPEDEF_ENUM or js_name in self.ENUM_DECL:
+                output_js_type = 'int'
+            else:
+                output_js_type = js_type
+        else:
+            output_js_type = js_type
+
+        return output_js_type
+
+
     def create_output_dir(self, output_path: str):
         dirpath, filename = os.path.split(output_path)
         
@@ -794,32 +821,7 @@ class CParser:
         with open(output_path, 'w+b') as f:
             f.write(output)
 
-
-    def simplify_type(self, js_type: Union[str, dict]) -> CType:
-        output_js_type: CType
-
-        if isinstance(js_type, dict) and js_type['kind'] == 'PtrDecl':
-            if js_type['type'] == 'char':
-                output_js_type = 'string'
-            else:
-                output_js_type = 'pointer'
-        elif isinstance(js_type, dict) and js_type['kind'] == 'Typename':
-            output_js_type = self.simplify_type(js_type['type'])
-        # elif isinstance(js_type, (list, tuple)):
-        #     output_js_type = [self.simplify_type(n) for n in js_type]
-        elif isinstance(js_type, str):
-            if js_type in self.BUILTIN_TYPES:
-                output_js_type = self.BUILTIN_TYPES[js_type]
-            elif js_type in self.TYPEDEF_PTR_DECL:
-                output_js_type = 'pointer'
-            else:
-                output_js_type = js_type
-        else:
-            output_js_type = js_type 
-
-        return output_js_type
-
-
+    
     def _get_size_of(self, js_name: str) -> int:
         cmd = f"""
             rm -f ./a.out
@@ -907,21 +909,25 @@ class CParser:
             _params_types = []
 
             for pt in params_types:
-                if isinstance(pt, dict) and pt['kind'] == 'Typename':
-                    pt = pt['type']
+                if isinstance(pt, dict):
+                    if pt['kind'] == 'Typename':
+                        pt = pt['type']
 
-                    if isinstance(pt, dict) and isinstance(pt['type'], str) and pt['type'] in self.TYPEDEF_FUNC_DECL:
-                        typedef_func_decl = self.TYPEDEF_FUNC_DECL[pt['type']]
-                        typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
-                        typedef_func_decl_params_types = [self.simplify_type(n) for n in typedef_func_decl['params_types']]
+                        if isinstance(pt, dict) and isinstance(pt['type'], str) and pt['type'] in self.TYPEDEF_FUNC_DECL:
+                            typedef_func_decl = self.TYPEDEF_FUNC_DECL[pt['type']]
+                            typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
+                            typedef_func_decl_params_types = [self.simplify_type(n) for n in typedef_func_decl['params_types']]
 
-                        new_pt = {
-                            'kind': 'PtrFuncDecl',
-                            'return_type': typedef_func_decl_return_type,
-                            'params_types': typedef_func_decl_params_types,
-                        }
+                            new_pt = {
+                                'kind': 'PtrFuncDecl',
+                                'return_type': typedef_func_decl_return_type,
+                                'params_types': typedef_func_decl_params_types,
+                            }
 
-                        _params_types.append(new_pt)
+                            _params_types.append(new_pt)
+                        else:
+                            new_pt = self.simplify_type(pt)
+                            _params_types.append(new_pt)
                     else:
                         new_pt = self.simplify_type(pt)
                         _params_types.append(new_pt)
@@ -934,21 +940,25 @@ class CParser:
             _params_types = []
 
             for pt in params_types:
-                if isinstance(pt, str) and pt in self.TYPEDEF_PTR_DECL:
-                    tpd = self.TYPEDEF_PTR_DECL[pt]
+                if isinstance(pt, str):
+                    if pt in self.TYPEDEF_PTR_DECL:
+                        tpd = self.TYPEDEF_PTR_DECL[pt]
 
-                    if tpd['kind'] == 'PtrDecl' and isinstance(tpd['type'], dict) and tpd['type']['kind'] == 'FuncDecl':
-                        typedef_func_decl = tpd['type']
-                        typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
-                        typedef_func_decl_params_types = [self.simplify_type(n) for n in typedef_func_decl['params_types']]
+                        if tpd['kind'] == 'PtrDecl' and isinstance(tpd['type'], dict) and tpd['type']['kind'] == 'FuncDecl':
+                            typedef_func_decl = tpd['type']
+                            typedef_func_decl_return_type = self.simplify_type(typedef_func_decl['return_type'])
+                            typedef_func_decl_params_types = [self.simplify_type(n) for n in typedef_func_decl['params_types']]
 
-                        new_pt = {
-                            'kind': 'PtrFuncDecl',
-                            'return_type': typedef_func_decl_return_type,
-                            'params_types': typedef_func_decl_params_types,
-                        }
+                            new_pt = {
+                                'kind': 'PtrFuncDecl',
+                                'return_type': typedef_func_decl_return_type,
+                                'params_types': typedef_func_decl_params_types,
+                            }
 
-                        _params_types.append(new_pt)
+                            _params_types.append(new_pt)
+                        else:
+                            new_pt = self.simplify_type(pt)
+                            _params_types.append(new_pt)
                     else:
                         new_pt = self.simplify_type(pt)
                         _params_types.append(new_pt)
