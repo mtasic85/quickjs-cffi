@@ -812,8 +812,8 @@ class CParser:
 
 
     def preprocess_header_file(self, compiler: str, cflags: list[str], input_path: str, output_path: str):
-        print('DEFAULT_FRONTEND_CFLAGS', DEFAULT_FRONTEND_CFLAGS)
-        print('cflags', cflags)
+        # print('DEFAULT_FRONTEND_CFLAGS', DEFAULT_FRONTEND_CFLAGS)
+        # print('cflags', cflags)
         new_cflags = DEFAULT_FRONTEND_CFLAGS + cflags
         cmd = [compiler, '-E', *new_cflags, input_path]
         output: bytes = subprocess.check_output(cmd)
@@ -966,8 +966,7 @@ class CParser:
                     _params_types.append(pt)
 
             params_types = _params_types
-            print('!', js_name, return_type, params_types)
-
+            # print('!', js_name, return_type, params_types)
 
             # export of func
             types = [return_type, *params_types]
