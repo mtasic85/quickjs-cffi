@@ -25,7 +25,7 @@ function build () {
     CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
 
     cd $CACHE_QUICKJS_FFI_PATH
-    make
+    PATH=$PATH:../quickjs make
 
     echo build $PACKAGE_NAME $PACKAGE_VER
 }
