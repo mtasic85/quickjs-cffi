@@ -1,2 +1,2 @@
 #!/bin/bash
-PYTHONPATH=PYTHONPATH:local/quickjs-cffi/venv/lib/python3.9/site-packages/ python -B -u local/quickjs-cffi/autogen.py ${@:1}
+PYTHONPATH=local/quickjs-cffi/venv/lib/python3.9/site-packages/ python -B -u local/quickjs-cffi/autogen.py ${@:1}
