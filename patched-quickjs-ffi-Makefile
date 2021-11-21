@@ -1,4 +1,4 @@
-CFLAGS=-I../../.cache
+CFLAGS=-I../..
 
 ffi: quickjs-ffi.c test-lib.c
 	gcc $(CFLAGS) quickjs-ffi.c -o quickjs-ffi.so -ldl -lffi -shared -fPIC
