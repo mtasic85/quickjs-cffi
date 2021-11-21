@@ -6,6 +6,17 @@ PACKAGE_VER="0.1.0"
 function prepare () {
     ENV_PATH=$1
     CACHE_PACKAGE_PATH=$2
+    QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+
+    # rm if existing
+    if [ -d $QUICKJS_FFI_PATH ]; then
+        rm -rf QUICKJS_FFI_PATH
+    fi
+
+    # clone
+    git clone git@github.com:shajunxing/quickjs-ffi.git QUICKJS_FFI_PATH
+
+
     echo prepare $PACKAGE_NAME $PACKAGE_VER
 }
 
@@ -26,6 +37,8 @@ function uninstall () {
     ENV_PATH=$1
     CACHE_PACKAGE_PATH=$2
     LOCAL_PACKAGE_PATH=$3
+    QUICKJS_FFI_PATH=$CACHE_PACKAGE_PATH/quickjs-ffi
+    rm -rf QUICKJS_FFI_PATH
     echo uninstall $PACKAGE_NAME $PACKAGE_VER
 }
 
