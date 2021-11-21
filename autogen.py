@@ -1216,7 +1216,7 @@ if __name__ == '__main__':
 
     # translate
     c_parser = CParser(args.frontend_compiler,
-                       [n for n in args.frontend_cflags.split(',') if n],
+                       [n for n in args.frontend_cflags.split(' ') if n],
                        args.sizeof_cflags,
                        args.sizeof_include,
                        args.backend_compiler,
