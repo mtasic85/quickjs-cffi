@@ -1,17 +1,17 @@
 CFLAGS=-I../
 
 ffi: quickjs-ffi.c test-lib.c
-    gcc $(CFLAGS) quickjs-ffi.c -o quickjs-ffi.so -ldl -lffi -shared -fPIC
-    gcc $(CFLAGS) test-lib.c -o test-lib.so -shared -fPIC
-    qjs test.js
+	gcc $(CFLAGS) quickjs-ffi.c -o quickjs-ffi.so -ldl -lffi -shared -fPIC
+	gcc $(CFLAGS) test-lib.c -o test-lib.so -shared -fPIC
+	qjs test.js
 
 test1: test1.c
-    gcc $(CFLAGS) test1.c -o test1 -lffi -ldl -fPIC
-    ./test1
+	gcc $(CFLAGS) test1.c -o test1 -lffi -ldl -fPIC
+	./test1
 
 fib: fib.c
-    gcc $(CFLAGS) fib.c -o fib.so -shared -fPIC
+	gcc $(CFLAGS) fib.c -o fib.so -shared -fPIC
 
 null: null.c
-    gcc $(CFLAGS) null.c -o null1
-    gcc $(CFLAGS) null.c -o null2 -fPIC
+	gcc $(CFLAGS) null.c -o null1
+	gcc $(CFLAGS) null.c -o null2 -fPIC
