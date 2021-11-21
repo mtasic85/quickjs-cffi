@@ -4,11 +4,13 @@ PACKAGE_NAME="quickjs-cffi"
 PACKAGE_VER="0.1.0"
 
 function prepare () {
-    ENV_PATH=$1
-    CACHE_PACKAGE_PATH=$2
-    CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+    # args
+    local ENV_PATH=$1
+    local CACHE_PACKAGE_PATH=$2
 
     # rm if existing
+    local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+
     if [ -d $CACHE_QUICKJS_FFI_PATH ]; then
         rm -rf CACHE_QUICKJS_FFI_PATH
     fi
@@ -20,39 +22,42 @@ function prepare () {
 }
 
 function build () {
-    ENV_PATH=$1
-    CACHE_PACKAGE_PATH=$2
+    # args
+    local ENV_PATH=$1
+    local CACHE_PACKAGE_PATH=$2
+    
+    # build
     CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
-
     cd $CACHE_QUICKJS_FFI_PATH
-    PATH=$PATH:../quickjs make
+    make
 
     echo build $PACKAGE_NAME $PACKAGE_VER
 }
 
 function install () {
-    ENV_PATH=$1
-    CACHE_PACKAGE_PATH=$2
-    LOCAL_PACKAGE_PATH=$3
+    # args
+    local ENV_PATH=$1
+    local CACHE_PACKAGE_PATH=$2
+    local LOCAL_PACKAGE_PATH=$3
+    
+    # copy
     CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
-    LOCAL_PACKAGE_CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$LOCAL_PACKAGE_PATH/ffi
-
-    mkdir -p $CACHE_QUICKJS_FFI_PATH
-    cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.js $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.js
-    cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.so $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.so
+    cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.js $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.js
+    cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.so $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.so
 
     echo install $PACKAGE_NAME $PACKAGE_VER
 }
 
 function uninstall () {
-    ENV_PATH=$1
-    CACHE_PACKAGE_PATH=$2
-    LOCAL_PACKAGE_PATH=$3
-    CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
-    LOCAL_PACKAGE_CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$LOCAL_PACKAGE_PATH/ffi
+    # args
+    local ENV_PATH=$1
+    local CACHE_PACKAGE_PATH=$2
+    local LOCAL_PACKAGE_PATH=$3
 
-    rm -rf $CACHE_QUICKJS_FFI_PATH
-    rm -rf $LOCAL_PACKAGE_CACHE_QUICKJS_FFI_PATH
+    # remove
+    CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+    rm -rf $ENV_PATH/CACHE_PACKAGE_PATH
+    rm -rf $ENV_PATH/$LOCAL_PACKAGE_PATH
 
     echo uninstall $PACKAGE_NAME $PACKAGE_VER
 }
