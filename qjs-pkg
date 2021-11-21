@@ -25,8 +25,14 @@ function build () {
     # args
     local ENV_PATH=$1
     local CACHE_PACKAGE_PATH=$2
+
+    # setup python venv
+    python -m venv venv
+    source venv/bin/activate
+    pip -r requirements.txt
+    deactivate
     
-    # build
+    # build quickjs-ffi
     local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
     cd $CACHE_QUICKJS_FFI_PATH
     make
@@ -57,7 +63,7 @@ function uninstall () {
 
     # custom uninstall commands
     rm -f $ENV_PATH/qjs-cffi
-    
+
     echo uninstall $PACKAGE_NAME $PACKAGE_VER
 }
 
