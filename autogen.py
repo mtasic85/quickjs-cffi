@@ -13,7 +13,7 @@ from collections import ChainMap
 from pycparser import c_ast, parse_file
 
 
-DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -D__attribute__(x) -I../pycparser/utils/fake_libc_include -I./fake_include".split(' ')
+DEFAULT_FRONTEND_CFLAGS = r"-nostdinc -D__attribute__(x) -I./fake_libc_include -I./fake_include".split(' ')
 
 QUICKJS_FFI_WRAP_PTR_FUNC_DECL = '''
 const __quickjs_ffi_wrap_ptr_func_decl = (lib, name, nargs, ...types) => {
