@@ -1,0 +1,26 @@
+#!/bin/bash
+
+function prepare () {
+    ENV_PATH=$1
+    CACHE_PACKAGE_PATH=$2
+}
+
+function build () {
+    ENV_PATH=$1
+    CACHE_PACKAGE_PATH=$2
+}
+
+function install () {
+    ENV_PATH=$1
+    CACHE_PACKAGE_PATH=$2
+    LOCAL_PACKAGE_PATH=$3
+}
+
+function uninstall () {
+    ENV_PATH=$1
+    CACHE_PACKAGE_PATH=$2
+    LOCAL_PACKAGE_PATH=$3
+}
+
+# dispatch function with args without $0 and $1
+echo $($1 ${@:2})
