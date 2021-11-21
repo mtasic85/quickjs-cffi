@@ -1,3 +1,2 @@
 #!/bin/bash
-echo python autogen.py -B ${@:1}
-# python autogen.py ${@:1}
+PYTHONPATH= python -B -u autogen.py ${@:1}

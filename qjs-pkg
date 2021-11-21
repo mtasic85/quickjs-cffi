@@ -31,7 +31,7 @@ function build () {
     source venv/bin/activate
     pip install -r requirements.txt
     deactivate
-    
+
     # build quickjs-ffi
     local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
     cd $CACHE_QUICKJS_FFI_PATH
@@ -46,7 +46,13 @@ function install () {
     local CACHE_PACKAGE_PATH=$2
     local LOCAL_PACKAGE_PATH=$3
     
-    # copy
+    # copy python venv
+    cp -r $ENV_PATH/$CACHE_PACKAGE_PATH/venv $ENV_PATH/$LOCAL_PACKAGE_PATH/venv
+    cp -r $ENV_PATH/$CACHE_PACKAGE_PATH/fake_include $ENV_PATH/$LOCAL_PACKAGE_PATH/fake_include
+    cp -r $ENV_PATH/$CACHE_PACKAGE_PATH/fake_libc_include $ENV_PATH/$LOCAL_PACKAGE_PATH/fake_libc_include
+    cp $ENV_PATH/$CACHE_PACKAGE_PATH/autogen.py $ENV_PATH/$LOCAL_PACKAGE_PATH/autogen.py
+
+    # copy quickjs-ffi.js and quickjs-ffi.so
     local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.js $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.js
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.so $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.so
