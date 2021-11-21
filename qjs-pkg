@@ -7,6 +7,7 @@ function prepare () {
     # args
     local ENV_PATH=$1
     local CACHE_PACKAGE_PATH=$2
+    local LOCAL_PACKAGE_PATH=$3
 
     # rm if existing
     local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
@@ -25,6 +26,7 @@ function build () {
     # args
     local ENV_PATH=$1
     local CACHE_PACKAGE_PATH=$2
+    local LOCAL_PACKAGE_PATH=$3
 
     # setup python venv
     python -m venv venv
