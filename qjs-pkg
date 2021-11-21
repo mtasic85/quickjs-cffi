@@ -42,7 +42,7 @@ function install () {
     
     # copy
     local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
-    mkdir -p $ENV_PATH/$LOCAL_PACKAGE_PATH
+    # mkdir -p $ENV_PATH/$LOCAL_PACKAGE_PATH
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.js $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.js
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.so $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.so
 
@@ -56,9 +56,9 @@ function uninstall () {
     local LOCAL_PACKAGE_PATH=$3
 
     # remove
-    local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
-    rm -rf $ENV_PATH/CACHE_PACKAGE_PATH
-    rm -rf $ENV_PATH/$LOCAL_PACKAGE_PATH
+    # local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+    # rm -rf $ENV_PATH/CACHE_PACKAGE_PATH
+    # rm -rf $ENV_PATH/$LOCAL_PACKAGE_PATH
 
     echo uninstall $PACKAGE_NAME $PACKAGE_VER
 }
