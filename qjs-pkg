@@ -14,7 +14,7 @@ function prepare () {
     fi
 
     # clone
-    git clone git@github.com:shajunxing/quickjs-ffi.git QUICKJS_FFI_PATH
+    git clone git@github.com:shajunxing/quickjs-ffi.git $QUICKJS_FFI_PATH
 
 
     echo prepare $PACKAGE_NAME $PACKAGE_VER
@@ -38,7 +38,7 @@ function uninstall () {
     CACHE_PACKAGE_PATH=$2
     LOCAL_PACKAGE_PATH=$3
     QUICKJS_FFI_PATH=$CACHE_PACKAGE_PATH/quickjs-ffi
-    rm -rf QUICKJS_FFI_PATH
+    rm -rf $QUICKJS_FFI_PATH
     echo uninstall $PACKAGE_NAME $PACKAGE_VER
 }
 
