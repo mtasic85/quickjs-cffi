@@ -42,6 +42,7 @@ function install () {
     
     # copy
     local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+    mkdir -p $ENV_PATH/$LOCAL_PACKAGE_PATH
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.js $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.js
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.so $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.so
 
