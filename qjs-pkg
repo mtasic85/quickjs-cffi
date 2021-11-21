@@ -27,7 +27,7 @@ function build () {
     local CACHE_PACKAGE_PATH=$2
     
     # build
-    CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+    local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
     cd $CACHE_QUICKJS_FFI_PATH
     make
 
@@ -41,7 +41,7 @@ function install () {
     local LOCAL_PACKAGE_PATH=$3
     
     # copy
-    CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+    local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.js $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.js
     cp $CACHE_QUICKJS_FFI_PATH/quickjs-ffi.so $ENV_PATH/$LOCAL_PACKAGE_PATH/quickjs-ffi.so
 
@@ -55,7 +55,7 @@ function uninstall () {
     local LOCAL_PACKAGE_PATH=$3
 
     # remove
-    CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
+    local CACHE_QUICKJS_FFI_PATH=$ENV_PATH/$CACHE_PACKAGE_PATH/quickjs-ffi
     rm -rf $ENV_PATH/CACHE_PACKAGE_PATH
     rm -rf $ENV_PATH/$LOCAL_PACKAGE_PATH
 
