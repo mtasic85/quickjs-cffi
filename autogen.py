@@ -843,6 +843,11 @@ class CParser:
         """
 
         output: bytes = subprocess.check_output(cmd, shell=True)
+
+        # cleanup
+        if os.path.exists('a.out'):
+            os.remove('a.out')
+
         size: int = int(output.decode())
         return size
 
@@ -856,8 +861,8 @@ class CParser:
 
     def translate_to_js(self) -> str:
         lines: list[str] = [
-            "import { CFunction, CCallback } from 'quickjs-ffi.js';",
-            "import * as ffi from 'quickjs-ffi.so';",
+            "import { CFunction, CCallback } from 'local/quickjs-cffi/quickjs-ffi.js';",
+            "import * as ffi from 'local/quickjs-cffi/quickjs-ffi.so';",
             "export const malloc = ffi.malloc;",
             "export const free = ffi.free;",
             f"const LIB = {dumps(self.shared_library)};",
